@@ -32,6 +32,13 @@ MainComponent::MainComponent()
     volSlider.onValueChange = [this]() {volSliderValueChanged(); };
     addAndMakeVisible(volSlider);
 
+    timeLine.setSliderStyle(juce::Slider::LinearHorizontal);
+    timeLine.setRange(0.0,0.01,0.01);
+    timeLine.setValue(0.0);
+    timeLine.onValueChange = [this]() {timeLineValueChanged(); };
+    timeLine.onTimerCallback = [this]() {updateTimeLine(); };
+    timeLine.startTimer(100);
+    addAndMakeVisible(timeLine);
 
     formatManager.registerBasicFormats();
 
@@ -62,7 +69,7 @@ void MainComponent::resized()
     playButton.setBounds(90, getHeight() - 70, 50, 50);
     stopButton.setBounds(160, getHeight() - 70, 50, 50);
     volSlider.setBounds(230, getHeight() - 70, 300, 50);
-
+    timeLine.setBounds(20,getHeight()-140,getWidth()-40,50);
 
 }
 
@@ -81,18 +88,28 @@ void MainComponent::openButtonClicked()
 
         if (file != juce::File{})
         {
-            juce::AudioFormatReader* reader = formatManager.createReaderFor(file);
+            std::unique_ptr<juce::AudioFormatReader> reader(formatManager.createReaderFor(file));
 
             if (reader != nullptr)
             {
-                fileBuffer = juce::AudioSampleBuffer(2, reader->lengthInSamples);
+                int maxChannels = 2; //just stereo for now
+                fileBuffer = juce::AudioSampleBuffer(maxChannels, reader->lengthInSamples);
                 reader->read(&fileBuffer, 0, reader->lengthInSamples, 0, true, true);
-                readPtrs = fileBuffer.getArrayOfReadPointers();
+                auto readPtrArray = fileBuffer.getArrayOfReadPointers();
+                readPtrs = std::vector<const float*>(maxChannels);
+                for (int i = 0; i < maxChannels; i++) {
+                    readPtrs[i] = readPtrArray[i];
+                }
+
                 playButton.setEnabled(true);
+
+                sampleRate = reader->sampleRate;
+                fileDuration = fileBuffer.getNumSamples() / sampleRate;
+
+                initTimeLine();
             }
         }
     });
-
 }
 
 void MainComponent::playButtonClicked()
@@ -115,6 +132,18 @@ void MainComponent::stopButtonClicked()
 void MainComponent::volSliderValueChanged()
 {
     volume = volSlider.getValue();
+
+}
+
+void MainComponent::timeLineValueChanged()
+{
+    if (timeLine.disableOnValueChanged) { return; }
+
+    if (fileBuffer.getNumSamples() > 0)
+    {
+        curPosition = floor(timeLine.getValue() / fileDuration * fileBuffer.getNumSamples());
+        updateTimeLine();
+    }
 
 }
 
@@ -161,12 +190,13 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
         if (curPosition >= fileBuffer.getNumSamples()) {
             curPosition = 0;
         }
+
     }
 }
 
 void MainComponent::releaseResources()
 {
-  
+
 }
 
 
@@ -208,8 +238,23 @@ void MainComponent::changeState(TransportState newState)
     }
 }
 
+void MainComponent::initTimeLine() {
+    timeLine.setRange(0.0, fileDuration, 0.01);
+    updateTimeLine();
+}
 
-
+void MainComponent::updateTimeLine()
+{
+    timeLine.disableOnValueChanged = true;
+    if (fileDuration > 0 && fileBuffer.getNumSamples() > 0) {
+        timeLine.setValue((float)curPosition / fileBuffer.getNumSamples() * fileDuration);
+    }
+    else
+    {
+        timeLine.setValue(0);
+    }
+    timeLine.disableOnValueChanged = false;
+}
 
 
 
