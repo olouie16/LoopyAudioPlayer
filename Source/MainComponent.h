@@ -10,18 +10,25 @@ public:
     TimeLine() {
 
         textFromValueFunction = [](double value) {
-            int minutes = value / 60;
             int seconds = ((int)floor(value)) % 60;
+            int minutes = value / 60;
+            int hours = minutes / 60;
+            if (hours > 0) { minutes = minutes % 60; }
 
-            return juce::String(minutes) + ":" + (seconds<10 ? "0":"") + juce::String(seconds);
+            return  (hours>0 ? juce::String(hours)+":" : "") +
+                    (hours > 0 && minutes<10 ? "0" : "") + juce::String(minutes) + ":" +
+                    (seconds<10 ? "0":"") + juce::String(seconds);
             };
     };
 
     ~TimeLine() {};
     std::function<void()> onTimerCallback;
-    bool disableOnValueChanged = false;
+    
 private:
     void timerCallback() final { onTimerCallback(); };
+    //========================================================================
+
+
 
 };
 
