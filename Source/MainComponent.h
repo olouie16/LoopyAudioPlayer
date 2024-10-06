@@ -32,13 +32,42 @@ private:
 
 };
 
+class FileBrowserCompHelper 
+{
+public:
+    FileBrowserCompHelper() : thread("fileThread"),
+        audioFileFilter("*.mp3;*.wav;*.flac;*.ogg;*.wmv;*.aif;*.aiff;*.asf;*.wma;*.wm;*.bwf", "*", "AudioFiles")
+    {}
+
+    juce::TimeSliceThread thread;
+    const juce::WildcardFileFilter audioFileFilter;
+};
+
+class FileBrowserComp : public FileBrowserCompHelper, public juce::FileBrowserComponent
+{
+public:
+
+    FileBrowserComp(): juce::FileBrowserComponent(juce::FileBrowserComponent::FileChooserFlags::openMode + juce::FileBrowserComponent::FileChooserFlags::canSelectFiles,
+                                                    juce::File(), &audioFileFilter, nullptr)
+    {
+        //hacky way to "remove" the filenameBox+label beneath
+        this->removeChildComponent(3);//label
+        this->removeChildComponent(2);//box
+    }
+
+
+private:
+
+
+};
 
 //==============================================================================
 /*
     This component lives inside our window, and this is where you should put all
     your controls and content.
 */
-class MainComponent : public juce::AudioAppComponent
+class MainComponent : public juce::AudioAppComponent,
+                      public juce::FileBrowserListener
 {
 public:
     //==============================================================================
@@ -52,6 +81,9 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
 
+
+
+
 private:
     //==============================================================================
     // Your private member variables go here...
@@ -59,13 +91,13 @@ private:
 
     float volume = 1;
     int curPosition{}; //in samples
-    float sampleRate;
-    float fileDuration; //in secs
+    float sampleRate{};
+    float fileDuration{}; //in secs
 
 
-    juce::TextButton openButton;
     juce::TextButton playButton;
     juce::TextButton stopButton;
+    juce::TextButton loopButton;
     juce::Slider volSlider;
 
     TimeLine timeLine;
@@ -81,7 +113,6 @@ private:
     };
     TransportState state;
 
-
     juce::AudioFormatManager formatManager;
     std::unique_ptr<juce::FileChooser> chooser;
 
@@ -89,16 +120,25 @@ private:
     std::vector<const float*> readPtrs = {};
 
 
-    void openButtonClicked();
+
+    FileBrowserComp fileBrowser{};
+
     void playButtonClicked();
     void stopButtonClicked();
     void volSliderValueChanged();
     void timeLineValueChanged();
+    
+    void fileDoubleClicked(const juce::File& file);
+    void selectionChanged();
+    void fileClicked(const juce::File& file, const juce::MouseEvent& e);
+    void browserRootChanged(const juce::File& newRoot);
+
 
     void changeState(TransportState newState);
 
     void initTimeLine();
     void updateTimeLine();
 
+    void openFile(const juce::File& file);
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };
