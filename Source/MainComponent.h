@@ -67,7 +67,8 @@ private:
     your controls and content.
 */
 class MainComponent : public juce::AudioAppComponent,
-                      public juce::FileBrowserListener
+                      public juce::FileBrowserListener,
+                      public juce::ChangeListener
 {
 public:
     //==============================================================================
@@ -89,15 +90,10 @@ private:
     // Your private member variables go here...
 
 
-    float volume = 1;
-    int curPosition{}; //in samples
-    float sampleRate{};
-    float fileDuration{}; //in secs
-
-
     juce::TextButton playButton;
     juce::TextButton stopButton;
     juce::TextButton loopButton;
+    juce::TextButton settingsButton;
     juce::Slider volSlider;
 
     TimeLine timeLine;
@@ -113,10 +109,14 @@ private:
     };
     TransportState state;
 
-    juce::AudioFormatManager formatManager;
+
     std::unique_ptr<juce::FileChooser> chooser;
 
-    juce::AudioSampleBuffer fileBuffer;
+    juce::AudioFormatManager formatManager;
+    std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
+    juce::AudioTransportSource transportSource;
+
+    juce::TimeSliceThread fileBufferThreat = juce::TimeSliceThread("fileBufferThreat");
     std::vector<const float*> readPtrs = {};
 
 
@@ -125,6 +125,8 @@ private:
 
     void playButtonClicked();
     void stopButtonClicked();
+    void loopButtonClicked();
+    void settingsButtonClicked();
     void volSliderValueChanged();
     void timeLineValueChanged();
     
@@ -133,7 +135,7 @@ private:
     void fileClicked(const juce::File& file, const juce::MouseEvent& e);
     void browserRootChanged(const juce::File& newRoot);
 
-
+    void changeListenerCallback(juce::ChangeBroadcaster* source) override;
     void changeState(TransportState newState);
 
     void initTimeLine();
