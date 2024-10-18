@@ -45,9 +45,9 @@ MainComponent::MainComponent()
     timeLine.setRange(0.0,0.01,0.01);
     timeLine.setValue(0.0);
     timeLine.setTextBoxIsEditable(false);
-    timeLine.onValueChange = [this]() {timeLineValueChanged(); };
+    timeLine.onValueChange = [this](bool userChanged=false) {timeLineValueChanged(userChanged); };
     timeLine.onTimerCallback = [this]() {updateTimeLine(); };
-    timeLine.startTimer(100);
+    timeLine.startTimer(timeLine.guiRefreshTime);
     addAndMakeVisible(timeLine);
 
     fileBrowser.addListener(this);
@@ -64,8 +64,8 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
-    fileBufferThreat.stopThread(1000);
     shutdownAudio();
+    fileBufferThreat.stopThread(10000);
 }
 
 //==============================================================================
@@ -125,12 +125,15 @@ void MainComponent::volSliderValueChanged()
     transportSource.setGain(volSlider.getValue());
 }
 
-void MainComponent::timeLineValueChanged()
+void MainComponent::timeLineValueChanged(bool userChanged)
 {
-
-    transportSource.setPosition(timeLine.getValue());
-    updateTimeLine();
-
+    if (userChanged) {
+        transportSource.setPosition(timeLine.getValue());
+        timeLine.startTimer(timeLine.guiRefreshTime);
+    }
+    else {
+        updateTimeLine();
+    }
 
 }
 
@@ -141,23 +144,12 @@ void MainComponent::fileDoubleClicked(const juce::File& file)
     changeState(Starting);
 }
 
-void MainComponent::selectionChanged()
-{
-}
-
-void MainComponent::fileClicked(const juce::File& file, const juce::MouseEvent& e)
-{
-}
-
-void MainComponent::browserRootChanged(const juce::File& newRoot)
-{
-}
-
 
 
 void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
     transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
+    curSampleRate = sampleRate;
 
 }
 
@@ -179,6 +171,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 void MainComponent::releaseResources()
 {
     transportSource.releaseResources();
+
 }
 
 void MainComponent::changeListenerCallback(juce::ChangeBroadcaster* source)
@@ -189,7 +182,7 @@ void MainComponent::changeListenerCallback(juce::ChangeBroadcaster* source)
             changeState(Playing);
         else if ((state == Stopping) || (state == Playing))
             changeState(Stopped);
-        else if (Pausing == state)
+        else if (state == Pausing)
             changeState(Paused);
     }
 }
@@ -207,7 +200,6 @@ void MainComponent::changeState(TransportState newState)
             stopButton.setEnabled(false);
             playButton.setButtonText("Play");
             playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
-            //curPosition = 0;
             transportSource.setPosition(0.0);
             break;
         case Pausing:
@@ -219,7 +211,6 @@ void MainComponent::changeState(TransportState newState)
             break;
         case Starting:
             playButton.setButtonText("Pause");
-            //changeState(Playing);
             transportSource.start();
             break;
 
@@ -245,24 +236,22 @@ void MainComponent::initTimeLine() {
 
 void MainComponent::updateTimeLine()
 {
-    auto tmpFcn = timeLine.onValueChange;
-    timeLine.onValueChange = []() {};
 
-    if (transportSource.getLengthInSeconds() > 0 && transportSource.getTotalLength() > 0) {
-        timeLine.setValue((float)transportSource.getCurrentPosition());
+    if (!timeLine.mouseIsDragged) {
+
+        if (transportSource.getLengthInSeconds() > 0 && transportSource.getTotalLength() > 0) {
+            timeLine.setValue((float)transportSource.getNextReadPosition()/curSampleRate);
+        }
+        else
+        {
+            timeLine.setValue(0);
+        }
     }
-    else
-    {
-        timeLine.setValue(0);
-    }
-    timeLine.onValueChange = tmpFcn;
 }
 
 
 void MainComponent::openFile(const juce::File& file)
 {
-    //TransportState tmp_state = state;
-    //state = Stopped;
 
     if (file != juce::File{})
     {
@@ -271,7 +260,8 @@ void MainComponent::openFile(const juce::File& file)
         if (reader != nullptr)
         {
             auto newSource = std::make_unique<juce::AudioFormatReaderSource>(reader, true);
-            transportSource.setSource(newSource.get(), 5*48000, &fileBufferThreat, reader->sampleRate);
+            //transportSource.setSource(newSource.get(), 6000*48000, &fileBufferThreat, reader->sampleRate);
+            transportSource.setSource(newSource.get(),0, nullptr, reader->sampleRate);
             playButton.setEnabled(true);
             readerSource.reset(newSource.release());
 
@@ -284,6 +274,5 @@ void MainComponent::openFile(const juce::File& file)
         }
     }
 
-    //state = tmp_state;
 }
 

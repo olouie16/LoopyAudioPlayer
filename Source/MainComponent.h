@@ -19,16 +19,31 @@ public:
                     (hours > 0 && minutes<10 ? "0" : "") + juce::String(minutes) + ":" +
                     (seconds<10 ? "0":"") + juce::String(seconds);
             };
+
+        onDragEnd = [this]() {
+            DBG(getValue());
+            onValueChange(true);
+            mouseIsDragged=false;
+            };
+
+        onDragStart = [this]() {
+            mouseIsDragged = true;
+            };
+
     };
 
     ~TimeLine() {};
     std::function<void()> onTimerCallback;
-    
+    std::function<void(bool)> onValueChange;
+
+    double guiRefreshTime = 100; //ms;
+    bool mouseIsDragged=false;
+
+
+
 private:
     void timerCallback() final { onTimerCallback(); };
-    //========================================================================
-
-
+    
 
 };
 
@@ -115,10 +130,8 @@ private:
     juce::AudioFormatManager formatManager;
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
     juce::AudioTransportSource transportSource;
-
+    double curSampleRate = 0;
     juce::TimeSliceThread fileBufferThreat = juce::TimeSliceThread("fileBufferThreat");
-    std::vector<const float*> readPtrs = {};
-
 
 
     FileBrowserComp fileBrowser{};
@@ -128,12 +141,12 @@ private:
     void loopButtonClicked();
     void settingsButtonClicked();
     void volSliderValueChanged();
-    void timeLineValueChanged();
+    void timeLineValueChanged(bool userChanged);
     
     void fileDoubleClicked(const juce::File& file);
-    void selectionChanged();
-    void fileClicked(const juce::File& file, const juce::MouseEvent& e);
-    void browserRootChanged(const juce::File& newRoot);
+    void selectionChanged() {};
+    void fileClicked(const juce::File& file, const juce::MouseEvent& e) {};
+    void browserRootChanged(const juce::File& newRoot) {};
 
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
     void changeState(TransportState newState);
