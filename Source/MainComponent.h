@@ -1,51 +1,12 @@
 #pragma once
 
 #include <JuceHeader.h>
-
-
-class TimeLine : public juce::Slider,
-                 public juce::Timer
-{
-public:
-    TimeLine() {
-
-        textFromValueFunction = [](double value) {
-            int seconds = ((int)floor(value)) % 60;
-            int minutes = value / 60;
-            int hours = minutes / 60;
-            if (hours > 0) { minutes = minutes % 60; }
-
-            return  (hours>0 ? juce::String(hours)+":" : "") +
-                    (hours > 0 && minutes<10 ? "0" : "") + juce::String(minutes) + ":" +
-                    (seconds<10 ? "0":"") + juce::String(seconds);
-            };
-
-        onDragEnd = [this]() {
-            DBG(getValue());
-            onValueChange(true);
-            mouseIsDragged=false;
-            };
-
-        onDragStart = [this]() {
-            mouseIsDragged = true;
-            };
-
-    };
-
-    ~TimeLine() {};
-    std::function<void()> onTimerCallback;
-    std::function<void(bool)> onValueChange;
-
-    double guiRefreshTime = 100; //ms;
-    bool mouseIsDragged=false;
+#include "TimeLine.h"
 
 
 
-private:
-    void timerCallback() final { onTimerCallback(); };
-    
 
-};
+
 
 class FileBrowserCompHelper 
 {
@@ -124,15 +85,35 @@ private:
     };
     TransportState state;
 
+    enum Loopmode
+    {
+        notLooping,
+        loopWhole,
+        loopSection
+    };
+    Loopmode loopmode;
 
     std::unique_ptr<juce::FileChooser> chooser;
 
     juce::AudioFormatManager formatManager;
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
     juce::AudioTransportSource transportSource;
+    juce::AudioSourceChannelInfo transitionChannelInfo;
+    juce::AudioSampleBuffer transitionBuffer;
     double curSampleRate = 0;
-    juce::TimeSliceThread fileBufferThreat = juce::TimeSliceThread("fileBufferThreat");
+    double curVolume=1;
 
+    double crossFade = 2;
+    juce::TimeSliceThread fileBufferThreat = juce::TimeSliceThread("fileBufferThreat");
+    bool inTransition = false;
+    double crossFadeProgress = 0;
+    juce::int64 otherNextReadPos;
+    int curPosition=0;
+
+    double loopStartTime;
+    double loopEndTime;
+    double fadeStartTime;
+    double fadeEndTime;
 
     FileBrowserComp fileBrowser{};
 
@@ -150,10 +131,11 @@ private:
 
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
     void changeState(TransportState newState);
+    void changeLoopmode(Loopmode newLoopmode);
 
     void initTimeLine();
     void updateTimeLine();
-
+    void setLoopTimeStamps(double loopStart, double loopEnd);
     void openFile(const juce::File& file);
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

@@ -8,6 +8,7 @@
       <FILE id="Qg2fv8" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
       <FILE id="aE2vmF" name="MainComponent.cpp" compile="1" resource="0"
             file="Source/MainComponent.cpp"/>
+      <FILE id="wj0u3l" name="TimeLine.h" compile="0" resource="0" file="Source/TimeLine.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

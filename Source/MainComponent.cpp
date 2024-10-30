@@ -5,7 +5,7 @@ MainComponent::MainComponent()
 {
     setSize (1000, 700);
 
-    state = TransportState::Stopped;
+
 
     playButton.setButtonText("Play");
     playButton.onClick = [this] { playButtonClicked(); };
@@ -22,7 +22,7 @@ MainComponent::MainComponent()
     loopButton.setButtonText("Loop");
     loopButton.onClick = [this] { loopButtonClicked(); };
     loopButton.setColour(juce::TextButton::buttonColourId, juce::Colours::blue);
-    loopButton.setEnabled(false);
+    loopButton.setEnabled(true);
     addAndMakeVisible(loopButton);
 
     settingsButton.setButtonText("Settings");
@@ -47,6 +47,7 @@ MainComponent::MainComponent()
     timeLine.setTextBoxIsEditable(false);
     timeLine.onValueChange = [this](bool userChanged=false) {timeLineValueChanged(userChanged); };
     timeLine.onTimerCallback = [this]() {updateTimeLine(); };
+    timeLine.onLoopMarkerChange = [this](double left, double right) {setLoopTimeStamps(left, right); };
     timeLine.startTimer(timeLine.guiRefreshTime);
     addAndMakeVisible(timeLine);
 
@@ -59,7 +60,9 @@ MainComponent::MainComponent()
     fileBufferThreat.startThread();
     setAudioChannels(2, 2);
 
-
+    changeState(TransportState::Stopped);
+    playButton.setEnabled(false);
+    changeLoopmode(notLooping);
 }
 
 MainComponent::~MainComponent()
@@ -79,9 +82,6 @@ void MainComponent::paint (juce::Graphics& g)
 
 void MainComponent::resized()
 {
-    // This is called when the MainComponent is resized.
-    // If you add any child components, this is where you should
-    // update their positions.
 
     playButton.setBounds(20, getHeight() - 70, 50, 50);
     stopButton.setBounds(playButton.getRight() + 20, getHeight() - 70, 50, 50);
@@ -112,6 +112,21 @@ void MainComponent::stopButtonClicked()
 
 void MainComponent::loopButtonClicked()
 {
+    switch (loopmode)
+    {
+    case notLooping:
+        changeLoopmode(loopWhole);
+        break;
+    case loopWhole:
+        changeLoopmode(loopSection);
+        break;
+    case loopSection:
+        changeLoopmode(notLooping);
+        break;
+    default:
+        changeLoopmode(loopWhole);
+        break;
+    }
 }
 
 void MainComponent::settingsButtonClicked()
@@ -122,7 +137,8 @@ void MainComponent::settingsButtonClicked()
 
 void MainComponent::volSliderValueChanged()
 {
-    transportSource.setGain(volSlider.getValue());
+    curVolume = volSlider.getValue();
+    transportSource.setGain(curVolume);
 }
 
 void MainComponent::timeLineValueChanged(bool userChanged)
@@ -149,7 +165,10 @@ void MainComponent::fileDoubleClicked(const juce::File& file)
 void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
     transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
+    //transitionTransportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
     curSampleRate = sampleRate;
+    transitionBuffer = juce::AudioSampleBuffer(2, (crossFade+0.1) * sampleRate + 2 * samplesPerBlockExpected);
+    transitionChannelInfo = juce::AudioSourceChannelInfo(transitionBuffer);
 
 }
 
@@ -163,7 +182,102 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
         return;
     }
 
-    transportSource.getNextAudioBlock(bufferToFill);
+
+
+    if (inTransition)
+    {
+
+
+        if (transportSource.getCurrentPosition()+ (bufferToFill.numSamples/curSampleRate) > loopEndTime) {
+            //end of crossfade
+            inTransition = false;
+
+            double timeAlreadyOutOfLoop = transportSource.getCurrentPosition() + (bufferToFill.numSamples / curSampleRate) - loopEndTime;
+            int numSamplesAlreadyOutOfLoop = timeAlreadyOutOfLoop * curSampleRate;
+
+            transitionChannelInfo.numSamples = bufferToFill.numSamples;
+            transportSource.getNextAudioBlock(transitionChannelInfo);
+
+            transportSource.setNextReadPosition(otherNextReadPos);
+            transportSource.getNextAudioBlock(bufferToFill);
+
+            bufferToFill.buffer->applyGainRamp(bufferToFill.startSample, transitionChannelInfo.numSamples - numSamplesAlreadyOutOfLoop, crossFadeProgress, 1);
+            //transitionChannelInfo.buffer->applyGainRamp(transitionChannelInfo.startSample, numSamplesAlreadyInLoop, 0, crossFadeProgress);
+
+            for (int channel = 0; channel < bufferToFill.buffer->getNumChannels(); channel++) {
+                auto readPtr = transitionChannelInfo.buffer->getReadPointer(channel, transitionChannelInfo.startSample);
+                bufferToFill.buffer->addFromWithRamp(channel, bufferToFill.startSample, readPtr, transitionChannelInfo.numSamples - numSamplesAlreadyOutOfLoop, 1-crossFadeProgress, 0);
+            }
+            crossFadeProgress = 0;
+            transitionChannelInfo.startSample = 0;
+            //transportSource.setNextReadPosition(transitionTransportSource.getNextReadPosition());
+        }
+        else {
+            //while crossFade
+            transportSource.getNextAudioBlock(bufferToFill);
+            double gainStart = crossFadeProgress;
+            crossFadeProgress += (bufferToFill.numSamples / curSampleRate) / crossFade;
+
+            transitionChannelInfo.numSamples = bufferToFill.numSamples;
+            juce::int64 readPos = transportSource.getNextReadPosition();
+            transportSource.setNextReadPosition(otherNextReadPos);
+            transportSource.getNextAudioBlock(transitionChannelInfo);
+
+            bufferToFill.buffer->applyGainRamp(bufferToFill.startSample, bufferToFill.numSamples, 1 - gainStart, 1- crossFadeProgress);
+
+            for (int channel = 0; channel < bufferToFill.buffer->getNumChannels(); channel++) {
+                auto readPtr = transitionChannelInfo.buffer->getReadPointer(channel, transitionChannelInfo.startSample);
+                bufferToFill.buffer->addFromWithRamp(channel, bufferToFill.startSample, readPtr, transitionChannelInfo.numSamples, gainStart, crossFadeProgress);
+            }
+
+
+            transitionChannelInfo.startSample += transitionChannelInfo.numSamples;
+            otherNextReadPos = transportSource.getNextReadPosition();
+            transportSource.setNextReadPosition(readPos);
+
+        }
+
+
+    }
+    else 
+    {
+
+        transportSource.getNextAudioBlock(bufferToFill);
+
+        if (transportSource.getCurrentPosition() > fadeStartTime) {
+            if (crossFade > 0) {
+
+                //begin of crossFade
+                inTransition = true;
+
+                double timeAlreadyInLoop = transportSource.getCurrentPosition() - fadeStartTime;
+                int numSamplesAlreadyInLoop = timeAlreadyInLoop * curSampleRate;
+
+                crossFadeProgress = (timeAlreadyInLoop/crossFade);
+
+                transitionChannelInfo.startSample = 0;
+                transitionChannelInfo.numSamples = numSamplesAlreadyInLoop;
+                juce::int64 nextReadPos = transportSource.getNextReadPosition();
+                transportSource.setPosition(loopStartTime);
+                transportSource.getNextAudioBlock(transitionChannelInfo);
+
+                bufferToFill.buffer->applyGainRamp(bufferToFill.startSample + (bufferToFill.numSamples - numSamplesAlreadyInLoop), numSamplesAlreadyInLoop, 1, 1 - crossFadeProgress);
+                //transitionChannelInfo.buffer->applyGainRamp(transitionChannelInfo.startSample, numSamplesAlreadyInLoop, 0, crossFadeProgress);
+                for (int channel = 0; channel < bufferToFill.buffer->getNumChannels();channel++) {
+                    auto readPtr = transitionChannelInfo.buffer->getReadPointer(channel);
+                    bufferToFill.buffer->addFromWithRamp(channel, bufferToFill.startSample, readPtr, numSamplesAlreadyInLoop, 0, crossFadeProgress);
+                }
+                transitionChannelInfo.startSample += numSamplesAlreadyInLoop;
+                otherNextReadPos = transportSource.getNextReadPosition();
+            
+                transportSource.setNextReadPosition(nextReadPos);
+            }
+            else {
+                transportSource.setPosition(loopStartTime);
+
+            }
+        }
+    }
 
 
 }
@@ -178,12 +292,14 @@ void MainComponent::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
     if (source == &transportSource)
     {
-        if (transportSource.isPlaying())
-            changeState(Playing);
-        else if ((state == Stopping) || (state == Playing))
-            changeState(Stopped);
-        else if (state == Pausing)
-            changeState(Paused);
+        if (!inTransition) {
+            if (transportSource.isPlaying())
+                changeState(Playing);
+            else if ((state == Stopping) || (state == Playing))
+                changeState(Stopped);
+            else if (state == Pausing)
+                changeState(Paused);
+        }
     }
 }
 
@@ -229,8 +345,30 @@ void MainComponent::changeState(TransportState newState)
     }
 }
 
+void MainComponent::changeLoopmode(Loopmode newLoopmode) {
+
+    if (loopmode != newLoopmode)
+    {
+        loopmode = newLoopmode;
+
+        switch (loopmode) 
+        {
+        case notLooping:
+            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightcyan);
+            break;
+        case loopWhole:
+            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::darkslateblue);
+            break;
+        case loopSection:
+            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::orange);
+            break;
+        }
+    }
+}
+
 void MainComponent::initTimeLine() {
     timeLine.setRange(0.0, transportSource.getLengthInSeconds(), 0.01);
+    timeLine.updateLoopMarkers();
     updateTimeLine();
 }
 
@@ -249,6 +387,14 @@ void MainComponent::updateTimeLine()
     }
 }
 
+void MainComponent::setLoopTimeStamps(double loopStart, double loopEnd) {
+
+    loopStartTime = loopStart;
+    loopEndTime = loopEnd;
+
+    fadeStartTime = loopEndTime - crossFade;
+    fadeEndTime = loopStartTime + crossFade;
+}
 
 void MainComponent::openFile(const juce::File& file)
 {
@@ -262,17 +408,30 @@ void MainComponent::openFile(const juce::File& file)
             auto newSource = std::make_unique<juce::AudioFormatReaderSource>(reader, true);
             //transportSource.setSource(newSource.get(), 6000*48000, &fileBufferThreat, reader->sampleRate);
             transportSource.setSource(newSource.get(),0, nullptr, reader->sampleRate);
+
+
             playButton.setEnabled(true);
             readerSource.reset(newSource.release());
-
-
-
+            
             playButton.setEnabled(true);
 
             initTimeLine();
-            changeState(state);
+            //changeState(state);
+            //changeLoopmode(loopmode);
+
+
+
+            //load saved loopTimings here
+            fadeStartTime = transportSource.getLengthInSeconds() + 1;//for now just never loop until timings are set
+
         }
     }
 
 }
+
+
+
+
+
+
 
