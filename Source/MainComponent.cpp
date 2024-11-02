@@ -124,7 +124,7 @@ void MainComponent::loopButtonClicked()
         changeLoopmode(notLooping);
         break;
     default:
-        changeLoopmode(loopWhole);
+        changeLoopmode(notLooping);
         break;
     }
 }
@@ -144,7 +144,27 @@ void MainComponent::volSliderValueChanged()
 void MainComponent::timeLineValueChanged(bool userChanged)
 {
     if (userChanged) {
-        transportSource.setPosition(timeLine.getValue());
+
+        double newTime = timeLine.getValue();
+
+        if (loopmode == loopSection) {
+            if (newTime > fadeStartTime) {
+                if (newTime > loopEndTime) {
+                    //after loopSection
+                    changeLoopmode(loopWhole);
+                    inTransition = false;
+                }
+                else {
+                    //in crossFade
+                    inTransition = true;
+                    double timeAlreadyInCrossFade = newTime - fadeStartTime;
+                    crossFadeProgress = timeAlreadyInCrossFade / crossFade;
+                    otherNextReadPos = (loopStartTime + timeAlreadyInCrossFade) * curSampleRate;
+                }
+            }
+        }
+
+        transportSource.setPosition(newTime);
         timeLine.startTimer(timeLine.guiRefreshTime);
     }
     else {
@@ -273,6 +293,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 transportSource.setNextReadPosition(nextReadPos);
             }
             else {
+                //only jump, no crossfade
                 transportSource.setPosition(loopStartTime);
 
             }
@@ -347,23 +368,50 @@ void MainComponent::changeState(TransportState newState)
 
 void MainComponent::changeLoopmode(Loopmode newLoopmode) {
 
-    if (loopmode != newLoopmode)
-    {
         loopmode = newLoopmode;
 
         switch (loopmode) 
         {
         case notLooping:
+            
             loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightcyan);
+            loopButton.setButtonText("no Loop");
+            timeLine.hideLoopMarkers();
+            if(readerSource!=nullptr)
+                readerSource->setLooping(false);
+            
+            //inf so loop or fade will be initiated
+            loopStartTime = -INFINITY;
+            loopEndTime = INFINITY;
+            fadeStartTime = INFINITY;
+            fadeEndTime = -INFINITY;
             break;
         case loopWhole:
-            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::darkslateblue);
+            
+            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::black);
+            loopButton.setButtonText("Loop Whole");
+            timeLine.hideLoopMarkers();
+            if (readerSource != nullptr)
+                readerSource->setLooping(true);
+
+            loopStartTime = 0;
+            loopEndTime = transportSource.getLengthInSeconds();
+            fadeStartTime = loopEndTime-crossFade;
+            fadeEndTime = loopStartTime+crossFade;
             break;
         case loopSection:
+            
             loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::orange);
+            loopButton.setButtonText("Loop Region");
+            timeLine.showLoopMarkers();
+            if (readerSource != nullptr)
+                readerSource->setLooping(true);
+            
+            
+            //later with AudioFile Class saved timeStamps
+            setLoopTimeStamps(timeLine.getLeftLoopTimestamp(), timeLine.getRightLoopTimestamp());
             break;
         }
-    }
 }
 
 void MainComponent::initTimeLine() {
@@ -389,11 +437,18 @@ void MainComponent::updateTimeLine()
 
 void MainComponent::setLoopTimeStamps(double loopStart, double loopEnd) {
 
-    loopStartTime = loopStart;
-    loopEndTime = loopEnd;
+    double curTime = transportSource.getCurrentPosition();
+    if (loopmode == loopSection && curTime > loopEnd)
+        changeLoopmode(loopWhole);
 
-    fadeStartTime = loopEndTime - crossFade;
-    fadeEndTime = loopStartTime + crossFade;
+    if (loopmode == loopWhole) {
+
+        loopStartTime = loopStart;
+        loopEndTime = loopEnd;
+
+        fadeStartTime = loopEndTime - crossFade;
+        fadeEndTime = loopStartTime + crossFade;
+    }
 }
 
 void MainComponent::openFile(const juce::File& file)
@@ -417,7 +472,7 @@ void MainComponent::openFile(const juce::File& file)
 
             initTimeLine();
             //changeState(state);
-            //changeLoopmode(loopmode);
+            changeLoopmode(loopmode);
 
 
 

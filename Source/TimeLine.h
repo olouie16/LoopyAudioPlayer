@@ -30,9 +30,16 @@ public:
         g.strokePath(triangle, juce::PathStrokeType::PathStrokeType(2, juce::PathStrokeType::JointStyle::mitered));
     }
 
+    void setToActiveColours() {
+        setColour(baseColor, juce::Colours::orange);
+        setColour(outlineColour, juce::Colours::darkorange);
+    }
+    void setToInactiveColours() {
+        setColour(baseColor, juce::Colours::orange.darker(0.7));
+        setColour(outlineColour, juce::Colours::darkorange.darker(0.7));
+    }
 
-
-    //x: center, y: top
+    //anchor is at x: center, y: top 
     void setPosition(float x, float y) {
         x1 = x - height/2;
         x2 = x + height/2;
@@ -249,6 +256,14 @@ public:
             onLoopMarkerChange(leftMarker.getTimeStamp(), rightMarker.getTimeStamp());
     }
 
+    double getLeftLoopTimestamp(){
+        return leftMarker.getTimeStamp();
+    }
+
+    double getRightLoopTimestamp() {
+        return rightMarker.getTimeStamp();
+    }
+
     void mouseDown(const juce::MouseEvent& e)
     {
         if (e.mods.isShiftDown()) {
@@ -284,6 +299,23 @@ public:
             juce::Slider::mouseDrag(e);
         }
     }
+
+    void hideLoopMarkers() {
+
+        leftMarker.setToInactiveColours();
+        rightMarker.setToInactiveColours();
+        repaint();
+
+    }
+
+    void showLoopMarkers() {
+
+        leftMarker.setToActiveColours();
+        rightMarker.setToActiveColours();
+        repaint();
+
+    }
+
 private:
     void timerCallback() final { onTimerCallback(); };
     LoopMarker leftMarker;
