@@ -3528,6 +3528,9 @@
     <ClInclude Include="..\..\Source\TimeLine.h">
       <Filter>LoopyAudioPlayer\Source</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\AudioFile.h">
+      <Filter>LoopyAudioPlayer\Source</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\..\..\..\Program Files\JUCE\modules\juce_audio_basics\audio_play_head\juce_AudioPlayHead.h">
       <Filter>JUCE Modules\juce_audio_basics\audio_play_head</Filter>
     </ClInclude>

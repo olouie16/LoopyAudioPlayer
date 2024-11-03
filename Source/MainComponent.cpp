@@ -63,10 +63,15 @@ MainComponent::MainComponent()
     changeState(TransportState::Stopped);
     playButton.setEnabled(false);
     changeLoopmode(notLooping);
+
+    allFiles = std::vector<AudioFile>();
+
+    loadAllSettingsFromFile();
 }
 
 MainComponent::~MainComponent()
 {
+    saveAllSettingsToFile();
     shutdownAudio();
     fileBufferThreat.stopThread(10000);
 }
@@ -94,14 +99,12 @@ void MainComponent::resized()
 
 void MainComponent::playButtonClicked()
 {
-    //updateLoopState(loopingToggle.getToggleState());
     if (state == Playing)
     {
         changeState(Pausing);
     }
     else {
         changeState(Starting);
-        //changeState(Playing);
     }
 }
 
@@ -147,11 +150,15 @@ void MainComponent::timeLineValueChanged(bool userChanged)
 
         double newTime = timeLine.getValue();
 
+        if (loopmode == fakeLoopSection && newTime < loopEndTime) {
+            changeLoopmode(loopSection);
+        }
+
         if (loopmode == loopSection) {
             if (newTime > fadeStartTime) {
                 if (newTime > loopEndTime) {
                     //after loopSection
-                    changeLoopmode(loopWhole);
+                    changeLoopmode(fakeLoopSection);
                     inTransition = false;
                 }
                 else {
@@ -163,6 +170,8 @@ void MainComponent::timeLineValueChanged(bool userChanged)
                 }
             }
         }
+
+
 
         transportSource.setPosition(newTime);
         timeLine.startTimer(timeLine.guiRefreshTime);
@@ -185,7 +194,6 @@ void MainComponent::fileDoubleClicked(const juce::File& file)
 void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
     transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
-    //transitionTransportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
     curSampleRate = sampleRate;
     transitionBuffer = juce::AudioSampleBuffer(2, (crossFade+0.1) * sampleRate + 2 * samplesPerBlockExpected);
     transitionChannelInfo = juce::AudioSourceChannelInfo(transitionBuffer);
@@ -222,7 +230,6 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
             transportSource.getNextAudioBlock(bufferToFill);
 
             bufferToFill.buffer->applyGainRamp(bufferToFill.startSample, transitionChannelInfo.numSamples - numSamplesAlreadyOutOfLoop, crossFadeProgress, 1);
-            //transitionChannelInfo.buffer->applyGainRamp(transitionChannelInfo.startSample, numSamplesAlreadyInLoop, 0, crossFadeProgress);
 
             for (int channel = 0; channel < bufferToFill.buffer->getNumChannels(); channel++) {
                 auto readPtr = transitionChannelInfo.buffer->getReadPointer(channel, transitionChannelInfo.startSample);
@@ -230,7 +237,6 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
             }
             crossFadeProgress = 0;
             transitionChannelInfo.startSample = 0;
-            //transportSource.setNextReadPosition(transitionTransportSource.getNextReadPosition());
         }
         else {
             //while crossFade
@@ -282,7 +288,6 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 transportSource.getNextAudioBlock(transitionChannelInfo);
 
                 bufferToFill.buffer->applyGainRamp(bufferToFill.startSample + (bufferToFill.numSamples - numSamplesAlreadyInLoop), numSamplesAlreadyInLoop, 1, 1 - crossFadeProgress);
-                //transitionChannelInfo.buffer->applyGainRamp(transitionChannelInfo.startSample, numSamplesAlreadyInLoop, 0, crossFadeProgress);
                 for (int channel = 0; channel < bufferToFill.buffer->getNumChannels();channel++) {
                     auto readPtr = transitionChannelInfo.buffer->getReadPointer(channel);
                     bufferToFill.buffer->addFromWithRamp(channel, bufferToFill.startSample, readPtr, numSamplesAlreadyInLoop, 0, crossFadeProgress);
@@ -377,10 +382,11 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightcyan);
             loopButton.setButtonText("no Loop");
             timeLine.hideLoopMarkers();
+
             if(readerSource!=nullptr)
                 readerSource->setLooping(false);
             
-            //inf so loop or fade will be initiated
+            //inf so loop or fade will not be initiated
             loopStartTime = -INFINITY;
             loopEndTime = INFINITY;
             fadeStartTime = INFINITY;
@@ -391,6 +397,7 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::black);
             loopButton.setButtonText("Loop Whole");
             timeLine.hideLoopMarkers();
+
             if (readerSource != nullptr)
                 readerSource->setLooping(true);
 
@@ -404,12 +411,30 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::orange);
             loopButton.setButtonText("Loop Region");
             timeLine.showLoopMarkers();
+
             if (readerSource != nullptr)
                 readerSource->setLooping(true);
             
+            loopStartTime = currentFile->loopStart;
+            loopEndTime = currentFile->loopEnd;
+            fadeStartTime = loopEndTime - crossFade;
+            fadeEndTime = loopStartTime + crossFade;
             
-            //later with AudioFile Class saved timeStamps
-            setLoopTimeStamps(timeLine.getLeftLoopTimestamp(), timeLine.getRightLoopTimestamp());
+            break;
+
+        case fakeLoopSection:
+            //same visual als loopSection, but no loop
+            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::orange);
+            loopButton.setButtonText("Loop Region");
+            timeLine.showLoopMarkers();
+
+            if (readerSource != nullptr)
+                readerSource->setLooping(false);
+
+            loopStartTime = -INFINITY;
+            loopEndTime = INFINITY;
+            fadeStartTime = INFINITY;
+            fadeEndTime = -INFINITY;
             break;
         }
 }
@@ -437,18 +462,45 @@ void MainComponent::updateTimeLine()
 
 void MainComponent::setLoopTimeStamps(double loopStart, double loopEnd) {
 
+    if (loopStart < 0)
+        loopStart = 0;
+
+    if (loopEnd > transportSource.getLengthInSeconds())
+        loopEnd = transportSource.getLengthInSeconds();
+
+    if (currentFile != nullptr) {
+        currentFile->loopStart = loopStart;
+        currentFile->loopEnd = loopEnd;
+    }
+    timeLine.setLoopMarkerOnValues(loopStart, loopEnd, false);
+
     double curTime = transportSource.getCurrentPosition();
     if (loopmode == loopSection && curTime > loopEnd)
-        changeLoopmode(loopWhole);
+        changeLoopmode(fakeLoopSection);
 
-    if (loopmode == loopWhole) {
+    if (loopmode == loopSection && currentFile != nullptr) {
 
-        loopStartTime = loopStart;
-        loopEndTime = loopEnd;
+        loopStartTime = currentFile->loopStart;
+        loopEndTime = currentFile->loopEnd;
 
         fadeStartTime = loopEndTime - crossFade;
         fadeEndTime = loopStartTime + crossFade;
     }
+}
+
+AudioFile* MainComponent::findFileInAllFiles(const juce::File& file) {
+    juce::String curPath = file.getFullPathName();
+    for (auto it = allFiles.begin();it!=allFiles.end(); it++) {
+        if (curPath == it->absPath) {
+            return &*it;
+        }
+    }
+
+    //if not found -> new file
+    AudioFile newFile(curPath, 0, transportSource.getLengthInSeconds());
+    allFiles.push_back(newFile);
+    return &allFiles.back();
+
 }
 
 void MainComponent::openFile(const juce::File& file)
@@ -474,10 +526,11 @@ void MainComponent::openFile(const juce::File& file)
             //changeState(state);
             changeLoopmode(loopmode);
 
+            currentFile =  findFileInAllFiles(file);
+
+            setLoopTimeStamps(currentFile->loopStart, currentFile->loopEnd);
 
 
-            //load saved loopTimings here
-            fadeStartTime = transportSource.getLengthInSeconds() + 1;//for now just never loop until timings are set
 
         }
     }
@@ -485,8 +538,63 @@ void MainComponent::openFile(const juce::File& file)
 }
 
 
+void MainComponent::saveAllSettingsToFile() {
+    juce::File here = juce::File::getSpecialLocation(juce::File::SpecialLocationType::currentExecutableFile).getParentDirectory();
+    juce::File settingsFile = here.getChildFile("settings.json");
+    settingsFile.create();
+
+    juce::DynamicObject* obj = new juce::DynamicObject();
+    juce::var json(obj);
+
+    obj->setProperty("volume", curVolume);
+    obj->setProperty("path",fileBrowser.getRoot().getFullPathName());
+
+    currentFile = nullptr;
+
+    juce::var files;
+    for(AudioFile file : allFiles) {
+        juce::DynamicObject* fileObj = new juce::DynamicObject();
+        file.copyPropetiesToDynObj(fileObj);
+        files.append(juce::var(fileObj));
+    }
+    obj->setProperty("audioFiles", files);
 
 
+    settingsFile.replaceWithText(juce::JSON::toString(json));
+}
+
+void MainComponent::loadAllSettingsFromFile() {
+    juce::File here = juce::File::getSpecialLocation(juce::File::SpecialLocationType::currentExecutableFile).getParentDirectory();
+    juce::File settingsFile = here.getChildFile("settings.json");
+    settingsFile.create();
+    juce::FileInputStream in(settingsFile);
+    juce::var input = juce::JSON::parse(in);
+
+    juce::DynamicObject* obj = input.getDynamicObject();
+    if (obj != nullptr) {
+        juce::var prop;
+
+        prop = obj->getProperty("volume");
+        if (prop != juce::var()) {
+            curVolume = (double)prop;
+            volSlider.setValue(curVolume);
+        }
+
+        prop = obj->getProperty("path");
+        if(prop != juce::var())
+            fileBrowser.setRoot(juce::File(prop));
+    
+        prop = obj->getProperty("audioFiles");
+        if (prop != juce::var()) {
+            for (juce::var var : *prop.getArray()) {
+                AudioFile file = AudioFile::fromVar(var);
+
+                allFiles.push_back(file);
+            }
+        }
+
+    }
 
 
+}
 

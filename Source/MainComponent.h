@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "TimeLine.h"
+#include "AudioFile.h"
 
 
 
@@ -89,7 +90,8 @@ private:
     {
         notLooping,
         loopWhole,
-        loopSection
+        loopSection,
+        fakeLoopSection     //visuals like loopSection, but without real loop. this exists for the case of the playhead appearing after the looped section
     };
     Loopmode loopmode;
 
@@ -116,6 +118,8 @@ private:
     double fadeEndTime;
 
     FileBrowserComp fileBrowser{};
+    std::vector<AudioFile> allFiles;
+    AudioFile* currentFile=nullptr;
 
     void playButtonClicked();
     void stopButtonClicked();
@@ -128,6 +132,7 @@ private:
     void selectionChanged() {};
     void fileClicked(const juce::File& file, const juce::MouseEvent& e) {};
     void browserRootChanged(const juce::File& newRoot) {};
+    AudioFile* findFileInAllFiles(const juce::File& file);
 
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
     void changeState(TransportState newState);
@@ -137,5 +142,7 @@ private:
     void updateTimeLine();
     void setLoopTimeStamps(double loopStart, double loopEnd);
     void openFile(const juce::File& file);
+    void saveAllSettingsToFile();
+    void loadAllSettingsFromFile();
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

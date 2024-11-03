@@ -112,8 +112,8 @@ public:
 
         leftMarker.getPosFromValue = [this](double val) {return getPositionOfValue(val); };
         rightMarker.getPosFromValue = [this](double val) {return getPositionOfValue(val); };
-        leftMarker.setTimeStamp(10.0);
-        rightMarker.setTimeStamp(15.0);
+        leftMarker.setTimeStamp(0);
+        rightMarker.setTimeStamp(INFINITY);
     };
 
 
@@ -240,8 +240,9 @@ public:
     /// Sets both loop markers on given values. order of values is irrelevant.
     /// </summary>
     /// <param name="val1">first new value for loop markers</param>
-    /// <param name="val2"></param>
-    void setLoopMarkerOnValues(double val1, double val2) {
+    /// <param name="val2">second new value for loop markers</param>
+    /// <param name="callback">whether onLoopMarkerChange should be called or not</param>
+    void setLoopMarkerOnValues(double val1, double val2, bool callback=true) {
 
         if (val1 < val2) {
             leftMarker.setTimeStamp(val1);
@@ -252,7 +253,7 @@ public:
             rightMarker.setTimeStamp(val1);
         }
 
-        if (onLoopMarkerChange)
+        if (callback && onLoopMarkerChange)
             onLoopMarkerChange(leftMarker.getTimeStamp(), rightMarker.getTimeStamp());
     }
 
