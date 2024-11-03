@@ -70,8 +70,24 @@ private:
     juce::TextButton playButton;
     juce::TextButton stopButton;
     juce::TextButton loopButton;
-    juce::TextButton settingsButton;
     juce::Slider volSlider;
+    juce::ToggleButton crossFadeCheckBox;
+    juce::Label crossFadeLabel;
+    class CrossFadeEditFilter : public juce::TextEditor::InputFilter {
+        juce::String filterNewText(juce::TextEditor& edit, const juce::String& newInput) override {
+
+            if (newInput.containsOnly("0123456789.")) {
+                return newInput;
+            }
+            else {
+                return "";
+            }
+        
+        }
+    };
+    CrossFadeEditFilter crossFadeEditFilter;
+    juce::Label crossFadeUnit;
+
 
     TimeLine timeLine;
 
@@ -105,7 +121,7 @@ private:
     double curSampleRate = 0;
     double curVolume=1;
 
-    double crossFade = 2;
+    double crossFade = 0;
     juce::TimeSliceThread fileBufferThreat = juce::TimeSliceThread("fileBufferThreat");
     bool inTransition = false;
     double crossFadeProgress = 0;
@@ -127,22 +143,31 @@ private:
     void settingsButtonClicked();
     void volSliderValueChanged();
     void timeLineValueChanged(bool userChanged);
-    
+    void onCrossFadeCheckBoxChange();
+    void onCrossFadeTextEditShow();
+    void onCrossFadeTextEditHide();
+
     void fileDoubleClicked(const juce::File& file);
     void selectionChanged() {};
     void fileClicked(const juce::File& file, const juce::MouseEvent& e) {};
     void browserRootChanged(const juce::File& newRoot) {};
     AudioFile* findFileInAllFiles(const juce::File& file);
+    void setCrossFade(double time);
 
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
     void changeState(TransportState newState);
     void changeLoopmode(Loopmode newLoopmode);
-
+    double timeStampToNumber(juce::String s);
+    juce::String numberToTimeStamp(double n);
     void initTimeLine();
     void updateTimeLine();
     void setLoopTimeStamps(double loopStart, double loopEnd);
     void openFile(const juce::File& file);
     void saveAllSettingsToFile();
     void loadAllSettingsFromFile();
+
+
+    const double maxCrossFade = 20;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

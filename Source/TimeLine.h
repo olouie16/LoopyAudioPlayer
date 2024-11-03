@@ -34,7 +34,7 @@ public:
     void update();
 
     TimeLine* par;
-    juce::TextEditor inputBox;
+    //juce::TextEditor inputBox;
 
 private:
 

@@ -25,12 +25,6 @@ MainComponent::MainComponent()
     loopButton.setEnabled(true);
     addAndMakeVisible(loopButton);
 
-    settingsButton.setButtonText("Settings");
-    settingsButton.onClick = [this] { settingsButtonClicked(); };
-    settingsButton.setColour(juce::TextButton::buttonColourId, juce::Colours::lightgrey);
-    settingsButton.setEnabled(true);
-    addAndMakeVisible(settingsButton);
-
 
     volSlider.setSliderStyle(juce::Slider::LinearHorizontal);
     volSlider.setRange(0.0, 4.0, 0.0001);
@@ -40,6 +34,20 @@ MainComponent::MainComponent()
     volSlider.setValue(1);
     volSlider.onValueChange = [this]() {volSliderValueChanged(); };
     addAndMakeVisible(volSlider);
+
+    crossFadeCheckBox.onStateChange = [this]() {onCrossFadeCheckBoxChange(); };
+    crossFadeCheckBox.setButtonText("Cross Fade");
+    addAndMakeVisible(crossFadeCheckBox);
+
+
+    crossFadeLabel.setText("1",juce::NotificationType::dontSendNotification);
+    crossFadeLabel.setEditable(true);
+    crossFadeLabel.onEditorShow = [this]() {onCrossFadeTextEditShow(); };
+    crossFadeLabel.onEditorHide = [this]() {onCrossFadeTextEditHide(); };
+    addAndMakeVisible(crossFadeLabel);
+
+    crossFadeUnit.setText("sek", juce::NotificationType::dontSendNotification);
+    addAndMakeVisible(crossFadeUnit);
 
     timeLine.setSliderStyle(juce::Slider::LinearHorizontal);
     timeLine.setRange(0.0,0.01,0.01);
@@ -92,8 +100,10 @@ void MainComponent::resized()
     stopButton.setBounds(playButton.getRight() + 20, getHeight() - 70, 50, 50);
     loopButton.setBounds(stopButton.getRight() + 20, getHeight() - 70, 50, 50);
     volSlider.setBounds(loopButton.getRight() + 20, getHeight() - 70, std::min(400, getWidth() - 60 - 70 - loopButton.getRight() + 20), 50);
-    settingsButton.setBounds(volSlider.getRight() + 20, getHeight() - 70, 50, 50);
-    timeLine.setBounds(20,getHeight()-140,getWidth()-40,50);
+    timeLine.setBounds(20,getHeight()-140,getWidth()-60,50);
+    crossFadeCheckBox.setBounds(volSlider.getRight() + 5, volSlider.getPosition().y, 80, 50);
+    crossFadeLabel.setBounds(crossFadeCheckBox.getRight()+3, getHeight() - 60, 40, 30);
+    crossFadeUnit.setBounds(crossFadeLabel.getRight(), crossFadeLabel.getPosition().y, 40, 30);
     fileBrowser.setBounds(20, 20, getWidth()-40, timeLine.getPosition().y - 20);
 }
 
@@ -182,6 +192,33 @@ void MainComponent::timeLineValueChanged(bool userChanged)
 
 }
 
+void MainComponent::onCrossFadeCheckBoxChange()
+{
+    if (crossFadeCheckBox.getToggleState()) {
+        setCrossFade(timeStampToNumber(crossFadeLabel.getText()));
+    }
+    else {
+        setCrossFade(0);
+    }
+}
+
+void MainComponent::onCrossFadeTextEditShow() {
+    juce::TextEditor* edit = crossFadeLabel.getCurrentTextEditor();
+    edit->setMultiLine(false);
+    edit->setInputFilter(&crossFadeEditFilter, false);
+}
+
+void MainComponent::onCrossFadeTextEditHide() {
+    juce::String text = crossFadeLabel.getText();
+    double n = timeStampToNumber(text);
+    if (n > maxCrossFade) {
+        n = maxCrossFade;
+        crossFadeLabel.setText(juce::String(maxCrossFade), juce::NotificationType::dontSendNotification);
+    }
+    if (crossFadeCheckBox.getToggleState()) {
+        setCrossFade(n);
+    }
+}
 
 void MainComponent::fileDoubleClicked(const juce::File& file)
 {
@@ -195,7 +232,7 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate
 {
     transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
     curSampleRate = sampleRate;
-    transitionBuffer = juce::AudioSampleBuffer(2, (crossFade+0.1) * sampleRate + 2 * samplesPerBlockExpected);
+    transitionBuffer = juce::AudioSampleBuffer(2, maxCrossFade * sampleRate + 2*samplesPerBlockExpected);
     transitionChannelInfo = juce::AudioSourceChannelInfo(transitionBuffer);
 
 }
@@ -448,6 +485,16 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
         }
 }
 
+double MainComponent::timeStampToNumber(juce::String s)
+{
+    return s.getDoubleValue();
+}
+
+juce::String MainComponent::numberToTimeStamp(double n)
+{
+    return juce::String(n);
+}
+
 void MainComponent::initTimeLine() {
     timeLine.setRange(0.0, transportSource.getLengthInSeconds(), 0.01);
     timeLine.updateLoopMarkers();
@@ -509,6 +556,16 @@ AudioFile* MainComponent::findFileInAllFiles(const juce::File& file) {
     AudioFile newFile(curPath, 0, transportSource.getLengthInSeconds());
     allFiles.push_back(newFile);
     return &allFiles.back();
+
+}
+
+void MainComponent::setCrossFade(double time)
+{
+    if (time > maxCrossFade)
+        time = maxCrossFade;
+    crossFade = time;
+    fadeStartTime = loopEndTime - crossFade;
+    fadeEndTime = loopStartTime + crossFade;
 
 }
 

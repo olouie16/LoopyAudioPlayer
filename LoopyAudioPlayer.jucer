@@ -10,6 +10,7 @@
             file="Source/MainComponent.cpp"/>
       <FILE id="wj0u3l" name="TimeLine.h" compile="0" resource="0" file="Source/TimeLine.h"/>
       <FILE id="JeyQBa" name="AudioFile.h" compile="0" resource="0" file="Source/AudioFile.h"/>
+      <FILE id="GywrcI" name="TimeLine.cpp" compile="1" resource="0" file="Source/TimeLine.cpp"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>
