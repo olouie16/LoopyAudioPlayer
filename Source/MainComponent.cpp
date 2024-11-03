@@ -394,7 +394,7 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             break;
         case loopWhole:
             
-            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::black);
+            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightseagreen);
             loopButton.setButtonText("Loop Whole");
             timeLine.hideLoopMarkers();
 
@@ -415,10 +415,19 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             if (readerSource != nullptr)
                 readerSource->setLooping(true);
             
-            loopStartTime = currentFile->loopStart;
-            loopEndTime = currentFile->loopEnd;
-            fadeStartTime = loopEndTime - crossFade;
-            fadeEndTime = loopStartTime + crossFade;
+            if (currentFile != nullptr) {
+
+                loopStartTime = currentFile->loopStart;
+                loopEndTime = currentFile->loopEnd;
+                fadeStartTime = loopEndTime - crossFade;
+                fadeEndTime = loopStartTime + crossFade;
+            }
+            else {
+                loopStartTime = -INFINITY;
+                loopEndTime = INFINITY;
+                fadeStartTime = INFINITY;
+                fadeEndTime = -INFINITY;
+            }
             
             break;
 
