@@ -3,47 +3,64 @@
 
 
 LoopMarker::LoopMarker(TimeLine* par) :par(par) {
-    setColour(baseColor, juce::Colours::orange);
-    setColour(outlineColour, juce::Colours::darkorange);
+    //par->addChildComponent(inputBox);
+    
 
     //inputBox.setMultiLine(false);
-    //par->addChildComponent(inputBox);
+    //setBounds(0, 0, 1, 1);
+    setInterceptsMouseClicks(true, false);
+    createIcons();
 }
 
 void LoopMarker::paint(juce::Graphics& g)
 {
-
-    g.setColour(findColour(baseColor));
-
-    juce::Path triangle;
-    triangle.addTriangle(x1, y1, x2, y2, x3, y3);
-    g.fillPath(triangle);
-    g.setColour(findColour(outlineColour));
-    g.strokePath(triangle, juce::PathStrokeType::PathStrokeType(2, juce::PathStrokeType::JointStyle::mitered));
+    g.drawImageAt(active ? activeIcon : inactiveIcon, drawAtPoint.x, drawAtPoint.y);
 }
 
 void LoopMarker::resized() {
-    setPosition(par->getPositionOfValue(timeStamp), 5);
+    setPosition(par->getPositionOfValue(timeStamp), par->getHeight()/2 - height - 6);
 }
 
-void LoopMarker::setToActiveColours() {
-    setColour(baseColor, juce::Colours::orange);
-    setColour(outlineColour, juce::Colours::darkorange);
+void LoopMarker::setActive(bool active) {
+    this->active = active;
 }
 
-void LoopMarker::setToInactiveColours() {
-    setColour(baseColor, juce::Colours::orange.darker(0.7));
-    setColour(outlineColour, juce::Colours::darkorange.darker(0.7));
+
+void LoopMarker::createIcons() {
+    int x1 = 0;
+    int x2 = width;
+    int x3 = width/2;
+    int y1 = 0;
+    int y2 = 0;
+    int y3 = height;
+    juce::Path p;
+    p.addTriangle(x1, y1, x2, y2, x3, y3);
+
+    activeIcon = juce::Image(juce::Image::PixelFormat::ARGB, width, height, true);
+    juce::Graphics g(activeIcon);
+    g.setColour(juce::Colours::orange);
+    g.fillPath(p);
+    g.setColour(juce::Colours::darkorange);
+    g.strokePath(p, juce::PathStrokeType::PathStrokeType(2, juce::PathStrokeType::JointStyle::mitered));
+
+    inactiveIcon = juce::Image(juce::Image::PixelFormat::ARGB, width, height, true);
+    juce::Graphics g2(inactiveIcon);
+    g2.setColour(juce::Colours::orange.darker(0.7));
+    g2.fillPath(p);
+    g2.setColour(juce::Colours::darkorange.darker(0.7));
+    g2.strokePath(p, juce::PathStrokeType::PathStrokeType(2, juce::PathStrokeType::JointStyle::mitered));
+
 }
 
 //anchor is at x: center, y: top 
 void LoopMarker::setPosition(float x, float y) {
-    x1 = x - height / 2;
-    x2 = x + height / 2;
-    x3 = x;
-    y1 = y;
-    y2 = y;
-    y3 = y + height;
+
+    drawAtPoint = juce::Point<double>(x - width / 2, y);
+    bounds = juce::Rectangle<int>(floor(x - width / 2),
+                                floor(y),
+                                width+1,
+                                height+1);
+    setBounds(bounds);
     repaint();
 
     //inputBox.setBounds(x-20, par->getHeight()/2+4, 40, 16);
@@ -52,7 +69,7 @@ void LoopMarker::setPosition(float x, float y) {
 
 void LoopMarker::setTimeStamp(double val) {
     timeStamp = val;
-    setPosition(par->getPositionOfValue(timeStamp), getPosition().y + (height / 2));
+    resized();
 }
 
 void LoopMarker::update() {
@@ -165,11 +182,11 @@ double TimeLine::getValueFromPosition(const juce::MouseEvent& e) {
 
     if (isHorizontal())
     {
-        getValueFromPosition(e.position.x);
+        return getValueFromPosition(e.position.x);
     }
     else if (isVertical())
     {
-        getValueFromPosition(e.position.y);
+        return getValueFromPosition(e.position.y);
     }
     else {
         return 0.0;
@@ -224,6 +241,7 @@ void TimeLine::setLoopMarkerOnValues(double val1, double val2, bool callback = t
 
 void TimeLine::mouseDown(const juce::MouseEvent& e)
 {
+
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
         double time = getValueFromPosition(e);
@@ -261,21 +279,14 @@ void TimeLine::mouseDrag(const juce::MouseEvent& e) {
     }
 }
 
-void TimeLine::hideLoopMarkers() {
+void TimeLine::setLoopMarkersActive(bool active) {
 
-    leftMarker.setToInactiveColours();
-    rightMarker.setToInactiveColours();
+    leftMarker.setActive(active);
+    rightMarker.setActive(active);
     repaint();
 
 }
 
-void TimeLine::showLoopMarkers() {
-
-    leftMarker.setToActiveColours();
-    rightMarker.setToActiveColours();
-    repaint();
-
-}
 
 
 

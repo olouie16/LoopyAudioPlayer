@@ -418,7 +418,7 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             
             loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightcyan);
             loopButton.setButtonText("no Loop");
-            timeLine.hideLoopMarkers();
+            timeLine.setLoopMarkersActive(false);
 
             if(readerSource!=nullptr)
                 readerSource->setLooping(false);
@@ -433,7 +433,7 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             
             loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightseagreen);
             loopButton.setButtonText("Loop Whole");
-            timeLine.hideLoopMarkers();
+            timeLine.setLoopMarkersActive(false);
 
             if (readerSource != nullptr)
                 readerSource->setLooping(true);
@@ -447,7 +447,7 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             
             loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::orange);
             loopButton.setButtonText("Loop Region");
-            timeLine.showLoopMarkers();
+            timeLine.setLoopMarkersActive(true);
 
             if (readerSource != nullptr)
                 readerSource->setLooping(true);
@@ -472,7 +472,7 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             //same visual als loopSection, but no loop
             loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::orange);
             loopButton.setButtonText("Loop Region");
-            timeLine.showLoopMarkers();
+            timeLine.setLoopMarkersActive(true);
 
             if (readerSource != nullptr)
                 readerSource->setLooping(false);

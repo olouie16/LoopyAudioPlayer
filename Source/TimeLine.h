@@ -21,32 +21,34 @@ public:
 
     void resized() override;
 
-    void setToActiveColours();
-    void setToInactiveColours();
+    void setActive(bool active);
+
 
     //anchor is at x: center, y: top 
-    void setPosition(float x, float y);
-
     void setTimeStamp(double val);
-
     double getTimeStamp() {return timeStamp;}
+    void setPosition(float x, float y);
 
     void update();
 
     TimeLine* par;
     //juce::TextEditor inputBox;
+    juce::Image activeIcon;
+    juce::Image inactiveIcon;
 
 private:
 
-    int x1=0;
-    int y1=0;
-    int x2=0;
-    int y2=0;
-    int x3=0;
-    int y3=0;
-
     double timeStamp = 0;
     double height = 10;
+    double width = 8;
+    juce::Point<double> drawAtPoint;
+    juce::Rectangle<int> bounds;
+
+    bool active;
+
+    juce::AffineTransform transform;
+
+    void createIcons();
 };
 
 class TimeLine : public juce::Slider,
@@ -75,12 +77,12 @@ public:
     double getLeftLoopTimestamp(){return leftMarker.getTimeStamp();}
     double getRightLoopTimestamp(){return rightMarker.getTimeStamp();}
 
-    void mouseDown(const juce::MouseEvent& e);
-    void mouseUp(const juce::MouseEvent& e);
-    void mouseDrag(const juce::MouseEvent& e);
+    void mouseDown(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
+    void mouseDrag(const juce::MouseEvent& e) override;
 
-    void hideLoopMarkers();
-    void showLoopMarkers();
+
+    void setLoopMarkersActive(bool active);
 
 private:
     void timerCallback() final { onTimerCallback(); };
