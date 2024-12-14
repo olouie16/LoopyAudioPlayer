@@ -5,26 +5,20 @@ MainComponent::MainComponent()
 {
     setSize (1000, 700);
 
+    createButtonImages();
 
-
-    playButton.setButtonText("Play");
     playButton.onClick = [this] { playButtonClicked(); };
-    playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
     playButton.setEnabled(false);
     addAndMakeVisible(playButton);
 
-    stopButton.setButtonText("Stop");
+    stopButton.setImage(stopImage);
     stopButton.onClick = [this] { stopButtonClicked(); };
-    stopButton.setColour(juce::TextButton::buttonColourId, juce::Colours::red);
     stopButton.setEnabled(false);
     addAndMakeVisible(stopButton);
 
-    loopButton.setButtonText("Loop");
     loopButton.onClick = [this] { loopButtonClicked(); };
-    loopButton.setColour(juce::TextButton::buttonColourId, juce::Colours::blue);
     loopButton.setEnabled(true);
     addAndMakeVisible(loopButton);
-
 
     volSlider.setSliderStyle(juce::Slider::LinearHorizontal);
     volSlider.setRange(0.0, 4.0, 0.0001);
@@ -38,7 +32,6 @@ MainComponent::MainComponent()
     crossFadeCheckBox.onStateChange = [this]() {onCrossFadeCheckBoxChange(); };
     crossFadeCheckBox.setButtonText("Cross Fade");
     addAndMakeVisible(crossFadeCheckBox);
-
 
     crossFadeLabel.setText("1",juce::NotificationType::dontSendNotification);
     crossFadeLabel.setEditable(true);
@@ -142,6 +135,137 @@ void MainComponent::loopButtonClicked()
     }
 }
 
+void MainComponent::createButtonImages()
+{
+
+    int borderSize = 64;
+    int imageSize = 512;
+
+    float outline = 15;
+
+    juce::Colour noLoopCol = juce::Colours::lightcyan;
+    juce::Colour wholeLoopCol = juce::Colours::blue;
+    juce::Colour sectionLoopCol = juce::Colours::orange;
+
+    playImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
+    juce::Graphics playGraphics(playImage);
+    pauseImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
+    juce::Graphics pauseGraphics(pauseImage);
+    stopImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
+    juce::Graphics stopGraphics(stopImage);
+    noLoopImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
+    juce::Graphics noLoopGraphics(noLoopImage);
+    wholeLoopImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
+    juce::Graphics wholeLoopGraphics(wholeLoopImage);
+    sectionLoopImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
+    juce::Graphics sectionLoopGraphics(sectionLoopImage);
+
+
+    imageSize = imageSize - 2 * borderSize;
+
+    juce::Path playShape;
+    float xOffset = imageSize * (1 - (sqrt(3) / 2))/2;
+    playShape.addTriangle(xOffset, 0,
+                        xOffset, imageSize,
+                        imageSize * (sqrt(3) / 2) + xOffset, imageSize / 2);
+
+    playShape = playShape.createPathWithRoundedCorners(0.1 * imageSize);
+
+    playGraphics.setOrigin(borderSize, borderSize);
+    playGraphics.setColour(juce::Colours::green);
+    playGraphics.fillPath(playShape);
+    playGraphics.setColour(juce::Colours::black);
+    playGraphics.strokePath(playShape, juce::PathStrokeType::PathStrokeType(outline));
+
+    
+    juce::Path pauseShape;
+    pauseShape.addRoundedRectangle(0, 0, 0.33 * imageSize, imageSize, 0.1 * imageSize);
+    pauseShape.addRoundedRectangle(0.66*imageSize, 0, 0.33 * imageSize, imageSize, 0.1 * imageSize);
+
+    pauseGraphics.setOrigin(borderSize, borderSize);
+    pauseGraphics.setColour(juce::Colours::yellow);
+    pauseGraphics.fillPath(pauseShape);
+    pauseGraphics.setColour(juce::Colours::black);
+    pauseGraphics.strokePath(pauseShape, juce::PathStrokeType::PathStrokeType(outline));
+
+
+    juce::Path stopShape;
+    stopShape.addRoundedRectangle(0, 0, imageSize, imageSize, 0.1 * imageSize);
+
+    stopGraphics.setOrigin(borderSize, borderSize);
+    stopGraphics.setColour(juce::Colours::red);
+    stopGraphics.fillPath(stopShape);
+    stopGraphics.setColour(juce::Colours::black);
+    stopGraphics.strokePath(stopShape, juce::PathStrokeType::PathStrokeType(outline));
+
+
+    juce::Path loopShape;
+    float tailAngle = 2.4 * juce::float_Pi;
+    float headAngle = 1.6 * juce::float_Pi;
+    float loopArrowWidth = 0.15 * imageSize;
+    float outerRadius = 0.7 * imageSize / 2;
+    float innerRadius = outerRadius - loopArrowWidth;
+
+    loopShape.startNewSubPath(juce::Point<float>(0, -outerRadius).rotatedAboutOrigin<float>(tailAngle));
+    loopShape.addCentredArc(0, 0, outerRadius, outerRadius, 0, tailAngle, headAngle);
+    loopShape.lineTo(juce::Point<float>(0, -(outerRadius + loopArrowWidth)).rotatedAboutOrigin<float>(headAngle));
+    loopShape.lineTo(juce::Point<float>(-loopArrowWidth, -(outerRadius+innerRadius) / 2).rotatedAboutOrigin<float>(headAngle));
+    loopShape.lineTo(juce::Point<float>(0, -(innerRadius - loopArrowWidth)).rotatedAboutOrigin<float>(headAngle));
+    loopShape.lineTo(juce::Point<float>(0, -innerRadius).rotatedAboutOrigin<float>(headAngle));
+    loopShape.addCentredArc(0, 0, innerRadius, innerRadius, 0, headAngle, tailAngle);
+    //loopPath.lineTo(juce::Point<float>(0, -outerRadius).rotatedAboutOrigin<float>(tailAngle));
+
+    loopShape.closeSubPath();
+    loopShape.addPath(loopShape, juce::AffineTransform::rotation(juce::float_Pi));
+
+    juce::Path noLoopShape;
+    noLoopShape.addRectangle(- outerRadius - loopArrowWidth, -0.05 * imageSize, 2*(outerRadius + loopArrowWidth), 0.1 * imageSize);
+    
+
+    noLoopGraphics.setOrigin(imageSize/2+borderSize, imageSize / 2 + borderSize);
+    noLoopGraphics.setColour(noLoopCol.darker(0.2));
+    noLoopGraphics.fillPath(loopShape);
+    noLoopGraphics.setColour(juce::Colours::black);
+    noLoopGraphics.strokePath(loopShape, juce::PathStrokeType::PathStrokeType(outline));
+
+    noLoopGraphics.setColour(juce::Colours::red);
+    noLoopGraphics.fillPath(noLoopShape, juce::AffineTransform::rotation(-0.25 * juce::float_Pi));
+    noLoopGraphics.setColour(juce::Colours::black);
+    noLoopGraphics.strokePath(noLoopShape, juce::PathStrokeType::PathStrokeType(0.5*outline), juce::AffineTransform::rotation(-0.25 * juce::float_Pi));
+
+    juce::Path wholeLoopShape;
+    wholeLoopShape.addRoundedRectangle(0, 0, 0.2 * imageSize, imageSize, 0.025*imageSize);
+    wholeLoopShape.addRoundedRectangle(0.8*imageSize, 0, 0.2 * imageSize, imageSize, 0.025*imageSize);
+
+
+    wholeLoopGraphics.setOrigin(borderSize, borderSize);
+    wholeLoopGraphics.setColour(juce::Colours::blue);
+    wholeLoopGraphics.fillPath(wholeLoopShape);
+    wholeLoopGraphics.setColour(juce::Colours::black);
+    wholeLoopGraphics.strokePath(wholeLoopShape, juce::PathStrokeType::PathStrokeType(outline));
+
+    wholeLoopGraphics.setOrigin(imageSize / 2, imageSize / 2);
+    wholeLoopGraphics.setColour(noLoopCol.interpolatedWith(wholeLoopCol ,0.6));
+    wholeLoopGraphics.fillPath(loopShape);
+    wholeLoopGraphics.setColour(juce::Colours::black);
+    wholeLoopGraphics.strokePath(loopShape, juce::PathStrokeType::PathStrokeType(outline));
+
+
+    juce::Image loopMarker = timeLine.getActiveLoopMarkerIcon();
+    sectionLoopGraphics.setOrigin(borderSize, borderSize);
+    sectionLoopGraphics.drawImage(loopMarker, juce::Rectangle<float>(0, 0, 0.2 * imageSize, imageSize), juce::RectanglePlacement::xLeft | juce::RectanglePlacement::yTop);
+    sectionLoopGraphics.drawImage(loopMarker, juce::Rectangle<float>(0.8 * imageSize, 0, 0.2*imageSize, imageSize), juce::RectanglePlacement::xRight | juce::RectanglePlacement::yTop);
+
+    sectionLoopGraphics.setOrigin(imageSize / 2, imageSize / 2);
+    sectionLoopGraphics.setColour(noLoopCol.interpolatedWith(sectionLoopCol, 0.5));
+    sectionLoopGraphics.fillPath(loopShape);
+    sectionLoopGraphics.setColour(juce::Colours::black);
+    sectionLoopGraphics.strokePath(loopShape, juce::PathStrokeType::PathStrokeType(outline));
+
+
+
+}
+
 void MainComponent::settingsButtonClicked()
 {
 
@@ -225,7 +349,6 @@ void MainComponent::fileDoubleClicked(const juce::File& file)
     openFile(file);
     changeState(Starting);
 }
-
 
 
 void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
@@ -377,7 +500,7 @@ void MainComponent::changeState(TransportState newState)
         case Stopped:
             playButton.setEnabled(true);
             stopButton.setEnabled(false);
-            playButton.setButtonText("Play");
+            playButton.setImage(playImage);
             playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
             transportSource.setPosition(0.0);
             break;
@@ -385,24 +508,29 @@ void MainComponent::changeState(TransportState newState)
             transportSource.stop();
             break;
         case Paused:
-            playButton.setButtonText("Play");
+            playButton.setImage(playImage);
             playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
             break;
         case Starting:
-            playButton.setButtonText("Pause");
+            playButton.setImage(pauseImage);
             transportSource.start();
             break;
 
         case Playing:
-            playButton.setButtonText("Pause");
+            playButton.setImage(pauseImage);
             playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::orange);
             stopButton.setEnabled(true);
             break;
 
         case Stopping:
-            playButton.setButtonText("Play");
+            playButton.setImage(playImage);
             playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
-            transportSource.stop();
+            if (transportSource.isPlaying()) {
+                transportSource.stop();
+            }
+            else {
+                changeState(Stopped);
+            }
             break;
         }
     }
@@ -415,10 +543,10 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
         switch (loopmode) 
         {
         case notLooping:
-            
-            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightcyan);
-            loopButton.setButtonText("no Loop");
+
+            loopButton.setImage(noLoopImage);
             timeLine.setLoopMarkersActive(false);
+            timeLine.setWholeLoopMarkersActive(false);
 
             if(readerSource!=nullptr)
                 readerSource->setLooping(false);
@@ -431,9 +559,9 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             break;
         case loopWhole:
             
-            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightseagreen);
-            loopButton.setButtonText("Loop Whole");
+            loopButton.setImage(wholeLoopImage);
             timeLine.setLoopMarkersActive(false);
+            timeLine.setWholeLoopMarkersActive(true);
 
             if (readerSource != nullptr)
                 readerSource->setLooping(true);
@@ -445,10 +573,9 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             break;
         case loopSection:
             
-            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::orange);
-            loopButton.setButtonText("Loop Region");
+            loopButton.setImage(sectionLoopImage);
             timeLine.setLoopMarkersActive(true);
-
+            timeLine.setWholeLoopMarkersActive(false);
             if (readerSource != nullptr)
                 readerSource->setLooping(true);
             
@@ -470,9 +597,9 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
 
         case fakeLoopSection:
             //same visual als loopSection, but no loop
-            loopButton.setColour(juce::TextButton::textColourOffId, juce::Colours::orange);
-            loopButton.setButtonText("Loop Region");
+            loopButton.setImage(sectionLoopImage);
             timeLine.setLoopMarkersActive(true);
+            timeLine.setWholeLoopMarkersActive(false);
 
             if (readerSource != nullptr)
                 readerSource->setLooping(false);
@@ -664,3 +791,20 @@ void MainComponent::loadAllSettingsFromFile() {
 
 }
 
+void ControlButton::setImage(juce::Image& image)
+{
+    normalImage = image;
+    resized();
+}
+
+void ControlButton::resized()
+{
+    juce::Image scaledImage = normalImage.rescaled(getWidth(), getHeight(), juce::Graphics::ResamplingQuality::highResamplingQuality);
+
+    setImages(false, true, true,
+        scaledImage, 1, juce::Colours::transparentWhite,
+        scaledImage, 1, juce::Colours::white.withAlpha(0.1f),
+        scaledImage, 1, juce::Colours::white.withAlpha(0.3f));
+
+
+}

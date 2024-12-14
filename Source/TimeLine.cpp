@@ -112,14 +112,37 @@ TimeLine::TimeLine() {
 
 void TimeLine::paint(juce::Graphics& g)
 {
+
     juce::Slider::paint(g);
     leftMarker.paint(g);
     rightMarker.paint(g);
 
+    juce::Colour fillCol = juce::Colours::blue;
+    juce::Colour outlineCol = juce::Colours::black;
+
+    if (!wholeLoopActive) {
+        fillCol = fillCol.interpolatedWith(juce::Colours::darkgrey, 0.4);
+        outlineCol = outlineCol.interpolatedWith(juce::Colours::darkgrey, 0.4);
+    }
+
+    auto sliderbounds = getLookAndFeel().getSliderLayout(*this).sliderBounds;
+    juce::Rectangle<float> wholeMarker(getTextBoxWidth()+1, getHeight()/2-10, 5, 20);
+    g.setColour(fillCol);
+    g.fillRoundedRectangle(wholeMarker, 1);
+    g.setColour(outlineCol);
+    g.drawRoundedRectangle(wholeMarker, 1, 1);
+
+    wholeMarker.setX(getWidth() - 6);
+    //g.setColour(juce::Colours::blue);
+    g.setColour(fillCol);
+    g.fillRoundedRectangle(wholeMarker, 1);
+    g.setColour(outlineCol);
+    g.drawRoundedRectangle(wholeMarker, 1, 1);
 }
 
 void TimeLine::resized()
 {
+    getLookAndFeel().getSliderLayout(*this).sliderBounds.removeFromLeft(100);
     juce::Slider::resized();
     leftMarker.resized();
     rightMarker.resized();
@@ -285,6 +308,16 @@ void TimeLine::setLoopMarkersActive(bool active) {
     rightMarker.setActive(active);
     repaint();
 
+}
+
+void TimeLine::setWholeLoopMarkersActive(bool active)
+{
+    wholeLoopActive = active;
+}
+
+juce::Image TimeLine::getActiveLoopMarkerIcon()
+{
+    return leftMarker.activeIcon;
 }
 
 

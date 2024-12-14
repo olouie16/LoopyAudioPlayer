@@ -38,6 +38,23 @@ private:
 
 };
 
+
+class ControlButton : public juce::ImageButton
+{
+public:
+    ControlButton() {};
+    ~ControlButton() {};
+
+    void setImage(juce::Image& image);
+    void resized();
+
+private:
+    juce::Image normalImage;
+    juce::Image overImage;
+    juce::Image downImage;
+
+};
+
 //==============================================================================
 /*
     This component lives inside our window, and this is where you should put all
@@ -67,9 +84,9 @@ private:
     // Your private member variables go here...
 
 
-    juce::TextButton playButton;
-    juce::TextButton stopButton;
-    juce::TextButton loopButton;
+    ControlButton playButton;
+    ControlButton stopButton;
+    ControlButton loopButton;
     juce::Slider volSlider;
     juce::ToggleButton crossFadeCheckBox;
     juce::Label crossFadeLabel;
@@ -82,7 +99,7 @@ private:
             else {
                 return "";
             }
-        
+
         }
     };
     CrossFadeEditFilter crossFadeEditFilter;
@@ -137,9 +154,17 @@ private:
     std::vector<AudioFile> allFiles;
     AudioFile* currentFile=nullptr;
 
+    juce::Image playImage;
+    juce::Image pauseImage;
+    juce::Image stopImage;
+    juce::Image noLoopImage;
+    juce::Image wholeLoopImage;
+    juce::Image sectionLoopImage;
+
     void playButtonClicked();
     void stopButtonClicked();
     void loopButtonClicked();
+    void createButtonImages();
     void settingsButtonClicked();
     void volSliderValueChanged();
     void timeLineValueChanged(bool userChanged);

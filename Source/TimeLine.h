@@ -83,12 +83,15 @@ public:
 
 
     void setLoopMarkersActive(bool active);
+    void setWholeLoopMarkersActive(bool active);
+    juce::Image getActiveLoopMarkerIcon();
 
 private:
     void timerCallback() final { onTimerCallback(); };
     LoopMarker leftMarker = LoopMarker(this);
     LoopMarker rightMarker = LoopMarker(this);
 
+    bool wholeLoopActive;
 };
 
 
