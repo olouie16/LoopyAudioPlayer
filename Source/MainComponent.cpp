@@ -427,10 +427,12 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     }
     else 
     {
+        bool fadeStartTimeReachedInNextBlock = false;
+        if (transportSource.getCurrentPosition() + bufferToFill.numSamples/curSampleRate >= fadeStartTime) { fadeStartTimeReachedInNextBlock = true; }
 
         transportSource.getNextAudioBlock(bufferToFill);
 
-        if (transportSource.getCurrentPosition() > fadeStartTime) {
+        if (fadeStartTimeReachedInNextBlock) {
             if (crossFade > 0) {
 
                 //begin of crossFade

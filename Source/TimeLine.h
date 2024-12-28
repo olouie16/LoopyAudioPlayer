@@ -32,7 +32,6 @@ public:
     void update();
 
     TimeLine* par;
-    //juce::TextEditor inputBox;
     juce::Image activeIcon;
     juce::Image inactiveIcon;
 
@@ -68,18 +67,25 @@ public:
     void paint(juce::Graphics& g);
     void resized();
 
+
+    void positionInputBox(double time=-1);
+    void startShowingInputBox(double time=-1);
+    double lastLoopMarkerPos=0;
+
+
     void updateLoopMarkers();
     double getValueFromPosition(float pos);
     double getValueFromPosition(const juce::MouseEvent& e);
 
     void setLoopMarkerOnValue(double val);
-    void setLoopMarkerOnValues(double val1, double val2, bool callback);
+    void setLoopMarkerOnValues(double val1, double val2, bool callback=true);
     double getLeftLoopTimestamp(){return leftMarker.getTimeStamp();}
     double getRightLoopTimestamp(){return rightMarker.getTimeStamp();}
 
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
+    void mouseDoubleClick(const juce::MouseEvent& e) override;
 
 
     void setLoopMarkersActive(bool active);
@@ -91,7 +97,12 @@ private:
     LoopMarker leftMarker = LoopMarker(this);
     LoopMarker rightMarker = LoopMarker(this);
 
-    bool wholeLoopActive;
+    bool wholeLoopActive = false;
+    juce::TextEditor inputBox;
+    std::function<void()> inputBoxFadeFunction;
+    juce::TimedCallback inputBoxFadeTimer{ [this] {inputBoxFadeFunction(); } };
+
+    float inputBoxCenterX = 0;
 };
 
 

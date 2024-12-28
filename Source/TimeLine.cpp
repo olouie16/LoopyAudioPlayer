@@ -1,13 +1,10 @@
 #include "TimeLine.h"
-
+#include <regex>
 
 
 LoopMarker::LoopMarker(TimeLine* par) :par(par) {
-    //par->addChildComponent(inputBox);
-    
 
-    //inputBox.setMultiLine(false);
-    //setBounds(0, 0, 1, 1);
+    setBounds(0, 0, 1, 1);
     setInterceptsMouseClicks(true, false);
     createIcons();
 }
@@ -89,22 +86,113 @@ TimeLine::TimeLine() {
         return  (hours > 0 ? juce::String(hours) + ":" : "") +
             (hours > 0 && minutes < 10 ? "0" : "") + juce::String(minutes) + ":" +
             (seconds < 10 ? "0" : "") + juce::String(seconds);
-        };
+    };
+    valueFromTextFunction = [](const juce::String& text) {
+        const std::regex rgx(R"(^(?:([0-9]+):)?([0-9]+):([0-9]+)(?:,|.([0-9]+))?$)");
+        std::smatch m;
+        std::string stdString = text.toStdString();
+        std::regex_match(stdString, m, rgx);
 
+        double val = 0;
+        
+        if (!m.empty()) {
+
+
+            int hours = m.str(1).empty() ? 0 : std::stoi(m.str(1));
+            val += hours * 3600;
+
+            int minutes = std::stoi(m.str(2));
+            val += minutes * 60;
+
+            int seconds = std::stoi(m.str(3));
+            val += seconds;
+
+            int milliSeconds = m.str(4).empty() ? 0 : std::stoi(m.str(4));
+            for (int i = 0; i < m.str(4).length(); i++) {
+                val += std::stoi(m.str(4).substr(i, 1)) / std::pow(10, i + 1);
+            }
+
+        }
+        else {
+            //no match
+            val = -1;
+        }
+
+        return val;
+    };
     onDragStart = [this]() {
         mouseIsDragged = true;
-        };
+    };
 
     onDragEnd = [this]() {
         //DBG(getValue());
         if (onValueChange)
             onValueChange(true);
         mouseIsDragged = false;
-        };
+    };
+
+    inputBoxFadeFunction = [this] {
+
+        if (inputBoxFadeTimer.getTimerInterval() > 50) {
+            inputBoxFadeTimer.startTimer(50);
+        }
+        else {
+            inputBox.setAlpha(inputBox.getAlpha() - 0.05);
+            if (inputBox.getAlpha() <= 0)
+            {
+                inputBox.setVisible(false);
+                inputBoxFadeTimer.stopTimer();
+            }
+        }
+    };
+
+    inputBox.onTextChange = [this] {
+        float width = inputBox.getFont().getStringWidthFloat(inputBox.getText());
+        width += inputBox.getLeftIndent()*2;
+        inputBox.setBounds(round(inputBoxCenterX - width / 2.0), inputBox.getPosition().y, width, inputBox.getHeight());
+    }
+    ;
+    inputBox.onReturnKey = [this] {
+        inputBox.giveAwayKeyboardFocus();
+        double val = getValueFromText(inputBox.getText());
+        if (val == -1) {
+            val = lastLoopMarkerPos;
+        }
+
+        double maxVal = getMaximum();
+        val = val <= maxVal ? val : maxVal;
+
+        if (leftMarker.getTimeStamp() == lastLoopMarkerPos) {
+            setLoopMarkerOnValues(val, rightMarker.getTimeStamp());
+        }
+        else {
+            setLoopMarkerOnValues(leftMarker.getTimeStamp(), val);
+        }
+
+        positionInputBox(val);
+
+        inputBox.setReadOnly(true);
+        inputBoxFadeTimer.startTimer(1000);
+    };
+
+    inputBox.onEscapeKey = [this] {
+        inputBox.giveAwayKeyboardFocus();
+        inputBox.setText(getTextFromValue(lastLoopMarkerPos));
+    };
+
+    inputBox.onFocusLost = [this] {
+        inputBoxFadeTimer.startTimer(1000);
+        inputBox.setReadOnly(true);
+    };
+
 
     addAndMakeVisible(leftMarker);
     addAndMakeVisible(rightMarker);
 
+    inputBox.setMultiLine(false);
+    inputBox.setJustification(juce::Justification::centred);
+    addAndMakeVisible(inputBox);
+    inputBox.setVisible(false);
 
     leftMarker.setTimeStamp(0);
     rightMarker.setTimeStamp(INFINITY);
@@ -142,11 +230,38 @@ void TimeLine::paint(juce::Graphics& g)
 
 void TimeLine::resized()
 {
-    getLookAndFeel().getSliderLayout(*this).sliderBounds.removeFromLeft(100);
+    
     juce::Slider::resized();
+
+    positionInputBox();
+
     leftMarker.resized();
     rightMarker.resized();
 
+}
+
+void TimeLine::positionInputBox(double time) {
+
+    double value = time >= 0 ? time : getValue();
+    inputBox.setText(getTextFromValue(value));
+
+    float inputBoxWidth = inputBox.getFont().getStringWidthFloat(inputBox.getText()) + inputBox.getLeftIndent() * 2;
+    float inputBoxHeight = 16;
+
+    inputBoxCenterX = getPositionOfValue(value);
+
+    inputBox.setBounds(getPositionOfValue(value) - 0.5 * inputBoxWidth, 0.62 * getHeight(), inputBoxWidth, 16);
+
+}
+
+void TimeLine::startShowingInputBox(double time) {
+
+    positionInputBox(time);
+    inputBox.setVisible(true);
+    inputBox.setAlpha(1);
+    inputBox.setReadOnly(time<0);
+    inputBox.setCaretVisible(false);
+    inputBoxFadeTimer.startTimer(1000);
 }
 
 void TimeLine::updateLoopMarkers() {
@@ -247,16 +362,20 @@ void TimeLine::setLoopMarkerOnValue(double val) {
 /// <param name="val1">first new value for loop markers</param>
 /// <param name="val2">second new value for loop markers</param>
 /// <param name="callback">whether onLoopMarkerChange should be called or not</param>
-void TimeLine::setLoopMarkerOnValues(double val1, double val2, bool callback = true) {
+void TimeLine::setLoopMarkerOnValues(double val1, double val2, bool callback) {
 
-    if (val1 < val2) {
-        leftMarker.setTimeStamp(val1);
-        rightMarker.setTimeStamp(val2);
+    if (val1 > val2) {
+        std::swap(val1, val2);
     }
-    else {
-        leftMarker.setTimeStamp(val2);
-        rightMarker.setTimeStamp(val1);
-    }
+
+    val1 = val1 >= 0 ? val1 : 0;
+    val2 = val2 >= 0 ? val2 : 0;
+    double maxVal = getMaximum();
+    val1 = val1 <= maxVal ? val1 : maxVal;
+    val2 = val2 <= maxVal ? val2 : maxVal;
+
+    leftMarker.setTimeStamp(val1);
+    rightMarker.setTimeStamp(val2);
 
     if (callback && onLoopMarkerChange)
         onLoopMarkerChange(leftMarker.getTimeStamp(), rightMarker.getTimeStamp());
@@ -264,15 +383,16 @@ void TimeLine::setLoopMarkerOnValues(double val1, double val2, bool callback = t
 
 void TimeLine::mouseDown(const juce::MouseEvent& e)
 {
-
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
         double time = getValueFromPosition(e);
         setLoopMarkerOnValue(time);
+        startShowingInputBox(time);
     }
     else {
         //normal slider behavior
         juce::Slider::mouseDown(e);
+        startShowingInputBox();
     }
 
 }
@@ -295,11 +415,38 @@ void TimeLine::mouseDrag(const juce::MouseEvent& e) {
         //setting loopMarkers
         double time = getValueFromPosition(e);
         setLoopMarkerOnValue(time);
+        startShowingInputBox(time);
     }
     else {
         //normal slider behavior
         juce::Slider::mouseDrag(e);
+        startShowingInputBox();
     }
+
+    inputBox.setReadOnly(true);
+    inputBox.setCaretVisible(false);
+
+}
+
+void TimeLine::mouseDoubleClick(const juce::MouseEvent& e)
+{
+    if (e.mods.isShiftDown()) {
+        //setting loopMarkers
+        double time = getValueFromPosition(e);
+        setLoopMarkerOnValue(time);
+        lastLoopMarkerPos = time;
+        startShowingInputBox(time);
+        inputBox.setReadOnly(false);
+        inputBox.setCaretVisible(true);
+        inputBoxFadeTimer.stopTimer();
+        inputBox.grabKeyboardFocus();
+
+    }
+    else {
+        //normal slider behavior
+        juce::Slider::mouseDoubleClick(e);
+    }
+
 }
 
 void TimeLine::setLoopMarkersActive(bool active) {
