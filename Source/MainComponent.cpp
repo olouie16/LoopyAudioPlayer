@@ -7,6 +7,7 @@ MainComponent::MainComponent()
 
     createButtonImages();
 
+    playButton.setImage(playImage);
     playButton.onClick = [this] { playButtonClicked(); };
     playButton.setEnabled(false);
     addAndMakeVisible(playButton);
@@ -303,6 +304,10 @@ void MainComponent::timeLineValueChanged(bool userChanged)
                     otherNextReadPos = (loopStartTime + timeAlreadyInCrossFade) * curSampleRate;
                 }
             }
+            else {
+                inTransition = false;
+                crossFadeProgress = 0;
+            }
         }
 
 
@@ -443,21 +448,37 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
                 crossFadeProgress = (timeAlreadyInLoop/crossFade);
 
+                //in rare case of switching to regionLoop mode while playhead should already be in transition
+                float startGain, endGain;
+                int offset;
+                if (numSamplesAlreadyInLoop >= bufferToFill.numSamples) {
+                    startGain = 1;
+                    endGain = 1 - crossFadeProgress;
+                    offset = (numSamplesAlreadyInLoop - bufferToFill.numSamples)/curSampleRate;
+                    numSamplesAlreadyInLoop = bufferToFill.numSamples;
+                }
+                else {
+                    startGain = 1;
+                    endGain = 1 - crossFadeProgress;
+                    offset = 0;
+                }
+
                 transitionChannelInfo.startSample = 0;
                 transitionChannelInfo.numSamples = numSamplesAlreadyInLoop;
                 juce::int64 nextReadPos = transportSource.getNextReadPosition();
-                transportSource.setPosition(loopStartTime);
+                transportSource.setPosition(loopStartTime+offset);
                 transportSource.getNextAudioBlock(transitionChannelInfo);
 
-                bufferToFill.buffer->applyGainRamp(bufferToFill.startSample + (bufferToFill.numSamples - numSamplesAlreadyInLoop), numSamplesAlreadyInLoop, 1, 1 - crossFadeProgress);
+                bufferToFill.buffer->applyGainRamp(bufferToFill.startSample + (bufferToFill.numSamples - numSamplesAlreadyInLoop), numSamplesAlreadyInLoop, startGain, endGain);
                 for (int channel = 0; channel < bufferToFill.buffer->getNumChannels();channel++) {
                     auto readPtr = transitionChannelInfo.buffer->getReadPointer(channel);
-                    bufferToFill.buffer->addFromWithRamp(channel, bufferToFill.startSample, readPtr, numSamplesAlreadyInLoop, 0, crossFadeProgress);
+                    bufferToFill.buffer->addFromWithRamp(channel, bufferToFill.startSample, readPtr, numSamplesAlreadyInLoop, 1-startGain, 1-endGain);
                 }
                 transitionChannelInfo.startSample += numSamplesAlreadyInLoop;
                 otherNextReadPos = transportSource.getNextReadPosition();
             
                 transportSource.setNextReadPosition(nextReadPos);
+
             }
             else {
                 //only jump, no crossfade
@@ -546,6 +567,7 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
         {
         case notLooping:
 
+            inTransition = false;
             loopButton.setImage(noLoopImage);
             timeLine.setLoopMarkersActive(false);
             timeLine.setWholeLoopMarkersActive(false);
@@ -558,9 +580,11 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             loopEndTime = INFINITY;
             fadeStartTime = INFINITY;
             fadeEndTime = -INFINITY;
+
             break;
         case loopWhole:
             
+            inTransition = false;
             loopButton.setImage(wholeLoopImage);
             timeLine.setLoopMarkersActive(false);
             timeLine.setWholeLoopMarkersActive(true);
@@ -574,7 +598,14 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
             fadeEndTime = loopStartTime+crossFade;
             break;
         case loopSection:
-            
+
+            inTransition = false;
+
+            if (currentFile != nullptr && transportSource.getCurrentPosition() > currentFile->loopEnd) {
+                changeLoopmode(fakeLoopSection);
+                break;
+            }
+
             loopButton.setImage(sectionLoopImage);
             timeLine.setLoopMarkersActive(true);
             timeLine.setWholeLoopMarkersActive(false);
@@ -599,6 +630,7 @@ void MainComponent::changeLoopmode(Loopmode newLoopmode) {
 
         case fakeLoopSection:
             //same visual als loopSection, but no loop
+            inTransition = false;
             loopButton.setImage(sectionLoopImage);
             timeLine.setLoopMarkersActive(true);
             timeLine.setWholeLoopMarkersActive(false);
