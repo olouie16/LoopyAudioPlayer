@@ -29,6 +29,11 @@ public:
     double getTimeStamp() {return timeStamp;}
     void setPosition(float x, float y);
 
+    void mouseDown(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
+    void mouseDrag(const juce::MouseEvent& e) override;
+    void mouseDoubleClick(const juce::MouseEvent& e) override;
+
     void update();
 
     TimeLine* par;
@@ -40,12 +45,12 @@ private:
     double timeStamp = 0;
     double height = 10;
     double width = 8;
-    juce::Point<double> drawAtPoint;
+    juce::Point<float> drawAtPoint;
     juce::Rectangle<int> bounds;
 
     bool active;
 
-    juce::AffineTransform transform;
+    //juce::AffineTransform transform;
 
     void createIcons();
 };
@@ -82,6 +87,7 @@ public:
     double getLeftLoopTimestamp(){return leftMarker.getTimeStamp();}
     double getRightLoopTimestamp(){return rightMarker.getTimeStamp();}
 
+    void loopMarkerClick(const juce::MouseEvent& e, bool isDoubleClick);
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;

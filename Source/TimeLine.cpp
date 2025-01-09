@@ -5,7 +5,7 @@
 LoopMarker::LoopMarker(TimeLine* par) :par(par) {
 
     setBounds(0, 0, 1, 1);
-    setInterceptsMouseClicks(true, false);
+    //setInterceptsMouseClicks(true, false);
     createIcons();
 }
 
@@ -52,7 +52,7 @@ void LoopMarker::createIcons() {
 //anchor is at x: center, y: top 
 void LoopMarker::setPosition(float x, float y) {
 
-    drawAtPoint = juce::Point<double>(x - width / 2, y);
+    drawAtPoint = juce::Point<float>(x - width / 2, y);
     bounds = juce::Rectangle<int>(floor(x - width / 2),
                                 floor(y),
                                 width+1,
@@ -60,8 +60,30 @@ void LoopMarker::setPosition(float x, float y) {
     setBounds(bounds);
     repaint();
 
-    //inputBox.setBounds(x-20, par->getHeight()/2+4, 40, 16);
-    //inputBox.setVisible(true);
+}
+
+void LoopMarker::mouseDown(const juce::MouseEvent& e)
+{
+    juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width/2, par->getHeight() / 2 - height - 6));
+    par->loopMarkerClick(newE, false);
+}
+
+void LoopMarker::mouseUp(const juce::MouseEvent& e)
+{
+    juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width / 2, par->getHeight() / 2 - height - 6));
+    par->loopMarkerClick(newE, false);
+}
+
+void LoopMarker::mouseDrag(const juce::MouseEvent& e)
+{
+    juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width / 2, par->getHeight() / 2 - height - 6));
+    par->loopMarkerClick(newE, false);
+}
+
+void LoopMarker::mouseDoubleClick(const juce::MouseEvent& e)
+{
+    juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width / 2, par->getHeight() / 2 - height - 6));
+    par->loopMarkerClick(newE, true);
 }
 
 void LoopMarker::setTimeStamp(double val) {
@@ -381,13 +403,26 @@ void TimeLine::setLoopMarkerOnValues(double val1, double val2, bool callback) {
         onLoopMarkerChange(leftMarker.getTimeStamp(), rightMarker.getTimeStamp());
 }
 
+void TimeLine::loopMarkerClick(const juce::MouseEvent& e, bool isDoubleClick) {
+
+    double time = getValueFromPosition(e);
+    setLoopMarkerOnValue(time);
+    startShowingInputBox(time);
+
+    if (isDoubleClick) {
+        lastLoopMarkerPos = time;
+        inputBox.setReadOnly(false);
+        inputBox.setCaretVisible(true);
+        inputBoxFadeTimer.stopTimer();
+        inputBox.grabKeyboardFocus();
+    }
+}
+
 void TimeLine::mouseDown(const juce::MouseEvent& e)
 {
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
-        double time = getValueFromPosition(e);
-        setLoopMarkerOnValue(time);
-        startShowingInputBox(time);
+        loopMarkerClick(e, false);
     }
     else {
         //normal slider behavior
@@ -400,12 +435,12 @@ void TimeLine::mouseDown(const juce::MouseEvent& e)
 void TimeLine::mouseUp(const juce::MouseEvent& e) {
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
-        double time = getValueFromPosition(e);
-        setLoopMarkerOnValue(time);
+        loopMarkerClick(e, false);
     }
     else {
         //normal slider behavior
         juce::Slider::mouseUp(e);
+        startShowingInputBox();
     }
 }
 
@@ -413,9 +448,7 @@ void TimeLine::mouseDrag(const juce::MouseEvent& e) {
 
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
-        double time = getValueFromPosition(e);
-        setLoopMarkerOnValue(time);
-        startShowingInputBox(time);
+        loopMarkerClick(e, false);
     }
     else {
         //normal slider behavior
@@ -432,14 +465,7 @@ void TimeLine::mouseDoubleClick(const juce::MouseEvent& e)
 {
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
-        double time = getValueFromPosition(e);
-        setLoopMarkerOnValue(time);
-        lastLoopMarkerPos = time;
-        startShowingInputBox(time);
-        inputBox.setReadOnly(false);
-        inputBox.setCaretVisible(true);
-        inputBoxFadeTimer.stopTimer();
-        inputBox.grabKeyboardFocus();
+        loopMarkerClick(e, true);
 
     }
     else {
