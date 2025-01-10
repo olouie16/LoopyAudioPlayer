@@ -48,12 +48,160 @@ public:
     void setImage(juce::Image& image);
     void resized();
 
+    std::function< void()> onLeftClick;
+    std::function< void()> onRightClick;
+
+protected:
+    void clicked(const juce::ModifierKeys& modifiers) override{
+        if (modifiers.isLeftButtonDown()) {
+            if (onLeftClick)
+                onLeftClick();
+        }
+        if (modifiers.isRightButtonDown()) {
+            if (onRightClick)
+                onRightClick();
+        }
+    }
+
 private:
     juce::Image normalImage;
     juce::Image overImage;
     juce::Image downImage;
 
 };
+
+
+
+class MusicLibViewContentComponent :public juce::Component{
+public:
+    MusicLibViewContentComponent() {
+
+        setInterceptsMouseClicks(false, true);
+
+        textLabel.setText("Music Librarys", juce::NotificationType::dontSendNotification);
+        textLabel.setJustificationType(juce::Justification::centredTop);
+        textLabel.setFont(juce::Font(20));
+        textLabel.setInterceptsMouseClicks(false,false);
+        addAndMakeVisible(textLabel);
+
+        addAndMakeVisible(pathsCombo);
+
+        delButton.setButtonText("delete");
+        addAndMakeVisible(delButton);
+
+        backButton.setButtonText("back");
+        addAndMakeVisible(backButton);
+
+        fb.flexDirection = juce::FlexBox::Direction::column;
+        fb.flexWrap = juce::FlexBox::Wrap::noWrap;
+        fb.justifyContent = juce::FlexBox::JustifyContent::spaceAround;
+        fb.alignContent = juce::FlexBox::AlignContent::center;
+        fb.alignItems = juce::FlexBox::AlignItems::stretch;
+        
+
+        fb.items.add(juce::FlexItem(textLabel)
+            .withFlex(1, 1, 50)
+            .withMaxHeight(50)
+        );
+        
+        fbCombo.flexDirection = juce::FlexBox::Direction::row;
+        fbCombo.flexWrap = juce::FlexBox::Wrap::noWrap;
+        fbCombo.justifyContent = juce::FlexBox::JustifyContent::center;
+        fbCombo.alignContent = juce::FlexBox::AlignContent::stretch;
+        fbCombo.alignItems = juce::FlexBox::AlignItems::stretch;
+
+        fbCombo.items.add(juce::FlexItem().withFlex(0.5, 1, 30));
+        fbCombo.items.add(juce::FlexItem(pathsCombo)
+            .withFlex(5, 2, 400)
+            //.withMinHeight(20)
+            //.withMaxHeight(60)
+            .withMinWidth(50)
+        );
+        fbCombo.items.add(juce::FlexItem().withFlex(0.5, 1, 30)
+        );
+
+
+        fb.items.add(juce::FlexItem(fbCombo)
+            //.withMargin(juce::FlexItem::Margin(20,50,20,50))
+            .withMaxHeight(60)
+            .withMinHeight(20)
+            .withFlex(1,1,40)
+        );
+
+        fbButtons.flexDirection = juce::FlexBox::Direction::row;
+        fbButtons.flexWrap = juce::FlexBox::Wrap::noWrap;
+        fbButtons.justifyContent = juce::FlexBox::JustifyContent::center;
+        fbButtons.alignItems = juce::FlexBox::AlignItems::stretch;
+
+        fbButtons.items.add(juce::FlexItem().withFlex(0.5, 1, 30));
+        fbButtons.items.add(juce::FlexItem(delButton)
+            .withFlex(1, 0.25, 150)
+            .withMaxWidth(150)
+        );
+        fbButtons.items.add(juce::FlexItem().withFlex(5, 1.5, 100));
+        fbButtons.items.add(juce::FlexItem(backButton)
+            .withFlex(1, 0.25, 150)
+            .withMaxWidth(150)
+        );
+        fbButtons.items.add(juce::FlexItem().withFlex(0.5, 1, 30));
+
+        fb.items.add(juce::FlexItem(fbButtons)
+            .withMinHeight(20)
+            .withMaxHeight(60)
+            .withFlex(1,1,40)
+        );
+    }
+    ~MusicLibViewContentComponent() {};
+
+    juce::FlexBox fb;
+    juce::FlexBox fbButtons;
+    juce::FlexBox fbCombo;
+    juce::Label textLabel;
+    juce::ComboBox pathsCombo;
+    juce::TextButton delButton;
+    juce::TextButton backButton;
+
+
+    void resized() {
+
+
+        fb.performLayout(getLocalBounds());
+    }
+
+};
+
+class MusicLibViewWindow :public juce::ResizableWindow {
+
+public:
+    MusicLibViewWindow(): juce::ResizableWindow("musicLibsWindow", true)
+    {
+
+        musicLibViewContentComponent.delButton.onClick = [this] {onDelButtonClicked(); };
+        musicLibViewContentComponent.backButton.onClick = [this] {closeButtonPressed(); };
+
+        setContentComponent(&musicLibViewContentComponent);
+
+        setSize(500, 200);
+        setCentreRelative(0.2f, 0.2f);
+        setResizable(true, true);
+        setDraggable(true);
+
+    };
+    ~MusicLibViewWindow() {};
+
+    void closeButtonPressed() {
+
+        exitModalState();
+        setVisible(false);
+
+    }
+
+    MusicLibViewContentComponent musicLibViewContentComponent;
+
+
+    std::function<void()> onDelButtonClicked;
+};
+
 
 //==============================================================================
 /*
@@ -87,6 +235,7 @@ private:
     ControlButton playButton;
     ControlButton stopButton;
     ControlButton loopButton;
+    ControlButton musicLibRootButton;
     juce::Slider volSlider;
     juce::ToggleButton crossFadeCheckBox;
     juce::Label crossFadeLabel;
@@ -151,8 +300,11 @@ private:
     double fadeEndTime;
 
     FileBrowserComp fileBrowser{};
+    std::vector<juce::File> musicLibRoots;
     std::vector<AudioFile> allFiles;
     AudioFile* currentFile=nullptr;
+
+    MusicLibViewWindow musicLibViewWindow;
 
     juce::Image playImage;
     juce::Image pauseImage;
@@ -160,10 +312,17 @@ private:
     juce::Image noLoopImage;
     juce::Image wholeLoopImage;
     juce::Image sectionLoopImage;
+    juce::Image musicLibImage;
+    juce::Image musicLibHighlightedImage;
 
     void playButtonClicked();
     void stopButtonClicked();
     void loopButtonClicked();
+    void musicLibRootButtonLeftClicked();
+    void musicLibRootButtonRightClicked();
+    void deleteMusicLibRoot();
+    void updateMusicLibsComboBox();
+
     void createButtonImages();
     void settingsButtonClicked();
     void volSliderValueChanged();
@@ -175,7 +334,7 @@ private:
     void fileDoubleClicked(const juce::File& file);
     void selectionChanged() {};
     void fileClicked(const juce::File& file, const juce::MouseEvent& e) {};
-    void browserRootChanged(const juce::File& newRoot) {};
+    void browserRootChanged(const juce::File& newRoot);
     AudioFile* findFileInAllFiles(const juce::File& file);
     void setCrossFade(double time);
 

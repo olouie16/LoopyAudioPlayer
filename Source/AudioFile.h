@@ -8,10 +8,11 @@ class AudioFile
 {
 public:
 	juce::String absPath = "";
-	juce::String relPath="";//currently unused
-
+	juce::String relPathToLibRoot = "";
+	juce::String relPathToExe = ""; //not in use right now
 	double loopStart=0;
 	double loopEnd=0;
+	double length=0;
 
 	AudioFile() {
 	}
@@ -23,6 +24,13 @@ public:
 		obj->setProperty("loopStart", loopStart);
 		obj->setProperty("loopEnd", loopEnd);
 		obj->setProperty("absPath", absPath);
+		if (relPathToLibRoot != "") {
+			obj->setProperty("relPathToLibRoot", relPathToLibRoot);
+		}
+		if (relPathToExe != "") {
+			obj->setProperty("relPathToExe", relPathToExe);
+		}
+		obj->setProperty("length", length);
 	}
 
 	static AudioFile fromDynamicObject(const juce::DynamicObject& obj) {
@@ -33,6 +41,14 @@ public:
 		if (prop != juce::var())
 			audioFile.absPath = prop;
 
+		prop = obj.getProperty("relPathToLibRoot");
+		if (prop != juce::var())
+			audioFile.relPathToLibRoot = prop;
+
+		prop = obj.getProperty("relPathToExe");
+		if (prop != juce::var())
+			audioFile.relPathToExe = prop;
+
 		prop = obj.getProperty("loopStart");
 		if (prop != juce::var())
 			audioFile.loopStart = prop;
@@ -41,6 +57,9 @@ public:
 		if (prop != juce::var())
 			audioFile.loopEnd = prop;
 
+		prop = obj.getProperty("length");
+		if (prop != juce::var())
+			audioFile.length = prop;
 		
 		return audioFile;
 	}
