@@ -288,7 +288,7 @@ private:
     double curVolume=1;
 
     double crossFade = 0;
-    juce::TimeSliceThread fileBufferThreat = juce::TimeSliceThread("fileBufferThreat");
+    //juce::TimeSliceThread fileBufferThreat = juce::TimeSliceThread("fileBufferThreat");
     bool inTransition = false;
     double crossFadeProgress = 0;
     juce::int64 otherNextReadPos;
@@ -300,7 +300,7 @@ private:
     double fadeEndTime;
 
     FileBrowserComp fileBrowser{};
-    std::vector<juce::File> musicLibRoots;
+    std::vector<juce::File> musicLibs;
     std::vector<AudioFile> allFiles;
     AudioFile* currentFile=nullptr;
 

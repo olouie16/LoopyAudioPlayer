@@ -8,8 +8,8 @@ class AudioFile
 {
 public:
 	juce::String absPath = "";
-	juce::String relPathToLibRoot = "";
-	juce::String relPathToExe = ""; //not in use right now
+	juce::String relPathToLib = "";
+	//juce::String relPathToExe = ""; //not in use right now
 	double loopStart=0;
 	double loopEnd=0;
 	double length=0;
@@ -24,12 +24,12 @@ public:
 		obj->setProperty("loopStart", loopStart);
 		obj->setProperty("loopEnd", loopEnd);
 		obj->setProperty("absPath", absPath);
-		if (relPathToLibRoot != "") {
-			obj->setProperty("relPathToLibRoot", relPathToLibRoot);
+		if (relPathToLib != "") {
+			obj->setProperty("relPathToLib", relPathToLib);
 		}
-		if (relPathToExe != "") {
-			obj->setProperty("relPathToExe", relPathToExe);
-		}
+		//if (relPathToExe != "") {
+		//	obj->setProperty("relPathToExe", relPathToExe);
+		//}
 		obj->setProperty("length", length);
 	}
 
@@ -41,13 +41,13 @@ public:
 		if (prop != juce::var())
 			audioFile.absPath = prop;
 
-		prop = obj.getProperty("relPathToLibRoot");
+		prop = obj.getProperty("relPathToLib");
 		if (prop != juce::var())
-			audioFile.relPathToLibRoot = prop;
+			audioFile.relPathToLib = prop;
 
-		prop = obj.getProperty("relPathToExe");
-		if (prop != juce::var())
-			audioFile.relPathToExe = prop;
+		//prop = obj.getProperty("relPathToExe");
+		//if (prop != juce::var())
+		//	audioFile.relPathToExe = prop;
 
 		prop = obj.getProperty("loopStart");
 		if (prop != juce::var())

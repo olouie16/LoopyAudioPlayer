@@ -1,6 +1,6 @@
 #include "TimeLine.h"
 #include <regex>
-
+#include <format>
 
 LoopMarker::LoopMarker(TimeLine* par) :par(par) {
 
@@ -64,26 +64,26 @@ void LoopMarker::setPosition(float x, float y) {
 
 void LoopMarker::mouseDown(const juce::MouseEvent& e)
 {
-    juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width/2, par->getHeight() / 2 - height - 6));
-    par->loopMarkerClick(newE, false);
+    //juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width/2, par->getHeight() / 2 - height - 6));
+    par->loopMarkerClick(timeStamp, false, false);
 }
 
 void LoopMarker::mouseUp(const juce::MouseEvent& e)
 {
-    juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width / 2, par->getHeight() / 2 - height - 6));
-    par->loopMarkerClick(newE, false);
+    //juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width / 2, par->getHeight() / 2 - height - 6));
+    //par->loopMarkerClick(timeStamp, false, false);
 }
 
 void LoopMarker::mouseDrag(const juce::MouseEvent& e)
 {
     juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width / 2, par->getHeight() / 2 - height - 6));
-    par->loopMarkerClick(newE, false);
+    par->loopMarkerClick(par->getValueFromPosition(newE), true, false);
 }
 
 void LoopMarker::mouseDoubleClick(const juce::MouseEvent& e)
 {
-    juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width / 2, par->getHeight() / 2 - height - 6));
-    par->loopMarkerClick(newE, true);
+    //juce::MouseEvent newE = e.withNewPosition(juce::Point<float>(par->getPositionOfValue(timeStamp) + e.x - width / 2, par->getHeight() / 2 - height - 6));
+    par->loopMarkerClick(timeStamp, false, true);
 }
 
 void LoopMarker::setTimeStamp(double val) {
@@ -99,17 +99,24 @@ void LoopMarker::update() {
 
 TimeLine::TimeLine() {
 
-    textFromValueFunction = [](double value) {
-        int seconds = ((int)floor(value)) % 60;
-        int minutes = value / 60;
-        int hours = minutes / 60;
-        if (hours > 0) { minutes = minutes % 60; }
+    textFromValueFunction = [this](double value) {
+
+        bool milliSecsPrecision = showMilliSeconds;
+        int hours = floor(value / 3600);
+        value -= hours * 3600;
+        int minutes = floor(value / 60);
+        value -= minutes * 60;
+        int seconds = ((int)floor(value));
+        value -= seconds;
+        int milliseconds = (int)round(value * 1000);
 
         return  (hours > 0 ? juce::String(hours) + ":" : "") +
             (hours > 0 && minutes < 10 ? "0" : "") + juce::String(minutes) + ":" +
-            (seconds < 10 ? "0" : "") + juce::String(seconds);
+            (seconds < 10 ? "0" : "") + juce::String(seconds) +
+            (milliSecsPrecision ? std::format(".{:0>3}", milliseconds) : "");
     };
-    valueFromTextFunction = [](const juce::String& text) {
+
+    valueFromTextFunction = [this](const juce::String& text) {
         const std::regex rgx(R"(^(?:([0-9]+):)?([0-9]+):([0-9]+)(?:,|.([0-9]+))?$)");
         std::smatch m;
         std::string stdString = text.toStdString();
@@ -129,7 +136,7 @@ TimeLine::TimeLine() {
             int seconds = std::stoi(m.str(3));
             val += seconds;
 
-            int milliSeconds = m.str(4).empty() ? 0 : std::stoi(m.str(4));
+            //int milliSeconds = m.str(4).empty() ? 0 : std::stoi(m.str(4));
             for (int i = 0; i < m.str(4).length(); i++) {
                 val += std::stoi(m.str(4).substr(i, 1)) / std::pow(10, i + 1);
             }
@@ -142,12 +149,12 @@ TimeLine::TimeLine() {
 
         return val;
     };
+
     onDragStart = [this]() {
         mouseIsDragged = true;
     };
 
     onDragEnd = [this]() {
-        //DBG(getValue());
         if (onValueChange)
             onValueChange(true);
         mouseIsDragged = false;
@@ -163,6 +170,7 @@ TimeLine::TimeLine() {
             if (inputBox.getAlpha() <= 0)
             {
                 inputBox.setVisible(false);
+                showMilliSeconds = false;
                 inputBoxFadeTimer.stopTimer();
             }
         }
@@ -170,10 +178,10 @@ TimeLine::TimeLine() {
 
     inputBox.onTextChange = [this] {
         float width = inputBox.getFont().getStringWidthFloat(inputBox.getText());
-        width += inputBox.getLeftIndent()*2;
+        width += inputBox.getLeftIndent() * 2;
         inputBox.setBounds(round(inputBoxCenterX - width / 2.0), inputBox.getPosition().y, width, inputBox.getHeight());
-    }
-    ;
+    };
+    
     inputBox.onReturnKey = [this] {
         inputBox.giveAwayKeyboardFocus();
         double val = getValueFromText(inputBox.getText());
@@ -208,6 +216,14 @@ TimeLine::TimeLine() {
     };
 
 
+
+    setTextBoxIsEditable(true);
+
+    timeStampBox = findTimeStampBox();
+    if (timeStampBox!=nullptr) {
+        setClickableTimeStamp(true);
+    }
+
     addAndMakeVisible(leftMarker);
     addAndMakeVisible(rightMarker);
 
@@ -218,6 +234,8 @@ TimeLine::TimeLine() {
 
     leftMarker.setTimeStamp(0);
     rightMarker.setTimeStamp(INFINITY);
+
+
 };
 
 void TimeLine::paint(juce::Graphics& g)
@@ -278,6 +296,7 @@ void TimeLine::positionInputBox(double time) {
 
 void TimeLine::startShowingInputBox(double time) {
 
+    showMilliSeconds = true;
     positionInputBox(time);
     inputBox.setVisible(true);
     inputBox.setAlpha(1);
@@ -403,14 +422,16 @@ void TimeLine::setLoopMarkerOnValues(double val1, double val2, bool callback) {
         onLoopMarkerChange(leftMarker.getTimeStamp(), rightMarker.getTimeStamp());
 }
 
-void TimeLine::loopMarkerClick(const juce::MouseEvent& e, bool isDoubleClick) {
+void TimeLine::loopMarkerClick(double atTimeValue, bool isNewPos, bool isDoubleClick) {
 
-    double time = getValueFromPosition(e);
-    setLoopMarkerOnValue(time);
-    startShowingInputBox(time);
+
+    if(isNewPos)
+        setLoopMarkerOnValue(atTimeValue);
+
+    startShowingInputBox(atTimeValue);
 
     if (isDoubleClick) {
-        lastLoopMarkerPos = time;
+        lastLoopMarkerPos = atTimeValue;
         inputBox.setReadOnly(false);
         inputBox.setCaretVisible(true);
         inputBoxFadeTimer.stopTimer();
@@ -422,7 +443,7 @@ void TimeLine::mouseDown(const juce::MouseEvent& e)
 {
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
-        loopMarkerClick(e, false);
+        loopMarkerClick(getValueFromPosition(e), true, false);
     }
     else {
         //normal slider behavior
@@ -435,7 +456,7 @@ void TimeLine::mouseDown(const juce::MouseEvent& e)
 void TimeLine::mouseUp(const juce::MouseEvent& e) {
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
-        loopMarkerClick(e, false);
+        loopMarkerClick(getValueFromPosition(e), true, false);
     }
     else {
         //normal slider behavior
@@ -448,7 +469,7 @@ void TimeLine::mouseDrag(const juce::MouseEvent& e) {
 
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
-        loopMarkerClick(e, false);
+        loopMarkerClick(getValueFromPosition(e), true, false);
     }
     else {
         //normal slider behavior
@@ -465,7 +486,7 @@ void TimeLine::mouseDoubleClick(const juce::MouseEvent& e)
 {
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
-        loopMarkerClick(e, true);
+        loopMarkerClick(getValueFromPosition(e), true, true);
 
     }
     else {
@@ -473,6 +494,27 @@ void TimeLine::mouseDoubleClick(const juce::MouseEvent& e)
         juce::Slider::mouseDoubleClick(e);
     }
 
+}
+
+void TimeLine::childrenChanged()
+{
+    timeStampBox = findTimeStampBox();
+
+    setClickableTimeStamp(true);
+
+    timeStampBox->onEditorShow = [this] {
+        showMilliSeconds = true;
+        timeStampBox = findTimeStampBox();
+        if (timeStampBox != nullptr) {
+            juce::TextEditor* te = timeStampBox->getCurrentTextEditor();
+            te->setText(getTextFromValue(getValue()), juce::NotificationType::sendNotificationAsync);
+            te->setJustification(juce::Justification::centred);
+            te->moveCaretToEnd();
+            te->selectAll();
+        }
+
+    };
+    timeStampBox->onEditorHide = [this] {showMilliSeconds = false; };
 }
 
 void TimeLine::setLoopMarkersActive(bool active) {
@@ -491,6 +533,28 @@ void TimeLine::setWholeLoopMarkersActive(bool active)
 juce::Image TimeLine::getActiveLoopMarkerIcon()
 {
     return leftMarker.activeIcon;
+}
+
+juce::Label* TimeLine::findTimeStampBox()
+{
+    for (auto* child : getChildren())
+    {
+        if (auto* l = dynamic_cast<juce::Label*> (child))
+            return l;
+    }
+
+    return nullptr;
+}
+
+void TimeLine::setClickableTimeStamp(bool shouldBeClickable)
+{
+    if (shouldBeClickable) {
+        timeStampBox->setEditable(false, true, true);
+    }
+    else {
+        timeStampBox->setEditable(false, false, true);
+
+    }
 }
 
 

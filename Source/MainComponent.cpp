@@ -53,7 +53,7 @@ MainComponent::MainComponent()
     timeLine.setSliderStyle(juce::Slider::LinearHorizontal);
     timeLine.setRange(0.0,0.01,0.01);
     timeLine.setValue(0.0);
-    timeLine.setTextBoxIsEditable(false);
+    //timeLine.setTextBoxIsEditable(false);
     timeLine.onValueChange = [this](bool userChanged=false) {timeLineValueChanged(userChanged); };
     timeLine.onTimerCallback = [this]() {updateTimeLine(); };
     timeLine.onLoopMarkerChange = [this](double left, double right) {setLoopTimeStamps(left, right); };
@@ -70,14 +70,14 @@ MainComponent::MainComponent()
     formatManager.registerBasicFormats();
     transportSource.addChangeListener(this);
 
-    fileBufferThreat.startThread();
+    //fileBufferThreat.startThread();
     setAudioChannels(2, 2);
 
     changeState(TransportState::Stopped);
     playButton.setEnabled(false);
     changeLoopmode(notLooping);
 
-    musicLibRoots = std::vector<juce::File>();
+    musicLibs = std::vector<juce::File>();
     allFiles = std::vector<AudioFile>();
 
     loadAllSettingsFromFile();
@@ -87,7 +87,7 @@ MainComponent::~MainComponent()
 {
     saveAllSettingsToFile();
     shutdownAudio();
-    fileBufferThreat.stopThread(10000);
+    //fileBufferThreat.stopThread(10000);
 }
 
 //==============================================================================
@@ -158,10 +158,10 @@ void MainComponent::musicLibRootButtonLeftClicked() {
         
         //remove if already in List
         bool alreadyInList = false;
-        for (int i = 0; i < musicLibRoots.size(); i++) {
-            if (newRoot == musicLibRoots[i]) {
+        for (int i = 0; i < musicLibs.size(); i++) {
+            if (newRoot == musicLibs[i]) {
                 alreadyInList = true;
-                musicLibRoots.erase(musicLibRoots.begin() + i);
+                musicLibs.erase(musicLibs.begin() + i);
                 musicLibRootButton.setImage(musicLibImage);
                 break;
             }
@@ -169,7 +169,7 @@ void MainComponent::musicLibRootButtonLeftClicked() {
 
         //Add new musicLibRoot
         if (!alreadyInList) {
-            musicLibRoots.push_back(newRoot);
+            musicLibs.push_back(newRoot);
             musicLibRootButton.setImage(musicLibHighlightedImage);
         }
 
@@ -187,7 +187,7 @@ void MainComponent::musicLibRootButtonRightClicked()
 
 void MainComponent::deleteMusicLibRoot() {
     int index = musicLibViewWindow.musicLibViewContentComponent.pathsCombo.getSelectedId()-1;
-    musicLibRoots.erase(musicLibRoots.begin()+index);
+    musicLibs.erase(musicLibs.begin()+index);
     updateMusicLibsComboBox();
     browserRootChanged(fileBrowser.getRoot());
 }
@@ -196,8 +196,8 @@ void MainComponent::updateMusicLibsComboBox()
 {
     juce::ComboBox* cb = &musicLibViewWindow.musicLibViewContentComponent.pathsCombo;
     cb->clear();
-    for (int i = 0; i < musicLibRoots.size();i++) {
-        cb->addItem(musicLibRoots[i].getFullPathName(), i+1);
+    for (int i = 0; i < musicLibs.size();i++) {
+        cb->addItem(musicLibs[i].getFullPathName(), i+1);
     }
 
 }
@@ -449,7 +449,6 @@ void MainComponent::fileDoubleClicked(const juce::File& file)
     changeState(Starting);
 }
 
-
 void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
     transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
@@ -620,23 +619,28 @@ void MainComponent::changeState(TransportState newState)
             playButton.setImage(playImage);
             playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
             transportSource.setPosition(0.0);
+            timeLine.setClickableTimeStamp(true);
             break;
         case Pausing:
             transportSource.stop();
+            timeLine.setClickableTimeStamp(true);
             break;
         case Paused:
             playButton.setImage(playImage);
             playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
+            timeLine.setClickableTimeStamp(true);
             break;
         case Starting:
             playButton.setImage(pauseImage);
             transportSource.start();
+            timeLine.setClickableTimeStamp(false);
             break;
 
         case Playing:
             playButton.setImage(pauseImage);
             playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::orange);
             stopButton.setEnabled(true);
+            timeLine.setClickableTimeStamp(false);
             break;
 
         case Stopping:
@@ -648,6 +652,7 @@ void MainComponent::changeState(TransportState newState)
             else {
                 changeState(Stopped);
             }
+            timeLine.setClickableTimeStamp(true);
             break;
         }
     }
@@ -751,7 +756,7 @@ juce::String MainComponent::numberToTimeStamp(double n)
 }
 
 void MainComponent::initTimeLine() {
-    timeLine.setRange(0.0, transportSource.getLengthInSeconds(), 0.01);
+    timeLine.setRange(0.0, transportSource.getLengthInSeconds(), 0);
     timeLine.updateLoopMarkers();
     updateTimeLine();
 }
@@ -762,7 +767,7 @@ void MainComponent::updateTimeLine()
     if (!timeLine.mouseIsDragged) {
 
         if (transportSource.getLengthInSeconds() > 0 && transportSource.getTotalLength() > 0) {
-            timeLine.setValue((float)transportSource.getNextReadPosition()/curSampleRate);
+            timeLine.setValue(transportSource.getNextReadPosition()/curSampleRate);
         }
         else
         {
@@ -789,6 +794,9 @@ void MainComponent::setLoopTimeStamps(double loopStart, double loopEnd) {
     if (loopmode == loopSection && curTime > loopEnd)
         changeLoopmode(fakeLoopSection);
 
+    if (loopmode == fakeLoopSection && curTime < loopEnd)
+        changeLoopmode(loopSection);
+
     if (loopmode == loopSection && currentFile != nullptr) {
 
         loopStartTime = currentFile->loopStart;
@@ -799,10 +807,11 @@ void MainComponent::setLoopTimeStamps(double loopStart, double loopEnd) {
     }
 }
 
+
 void MainComponent::browserRootChanged(const juce::File& newRoot)
 {
     bool isLibRoot = false;
-    for (juce::File libRoot : musicLibRoots) {
+    for (juce::File libRoot : musicLibs) {
         if (newRoot == libRoot) {
             isLibRoot = true;
             break;
@@ -823,12 +832,12 @@ AudioFile* MainComponent::findFileInAllFiles(const juce::File& file) {
     double length = transportSource.getLengthInSeconds();
 
     // 1. find same relative path from a musicLibRoot
-    for (juce::File libRoot : musicLibRoots) {
+    for (juce::File libRoot : musicLibs) {
         if (file.isAChildOf(libRoot)) {
             relPath = file.getRelativePathFrom(libRoot);
 
             for (auto it = allFiles.begin(); it != allFiles.end(); it++) {
-                if (relPath == it->relPathToLibRoot) {
+                if (relPath == it->relPathToLib) {
                     it->length = length;
                     return &*it;
                 }
@@ -840,31 +849,30 @@ AudioFile* MainComponent::findFileInAllFiles(const juce::File& file) {
     for (auto it = allFiles.begin();it!=allFiles.end(); it++) {
         if (absPath == it->absPath) {
             it->length = transportSource.getLengthInSeconds();
-            it->relPathToLibRoot = it->relPathToLibRoot=="" ? relPath : it->relPathToLibRoot;
+            it->relPathToLib = it->relPathToLib=="" ? relPath : it->relPathToLib;
             return &*it;
         }
     }
 
     //if nothing found -> new file
     AudioFile newFile(absPath, 0, length);
-    newFile.relPathToLibRoot = relPath;
+    newFile.relPathToLib = relPath;
     newFile.length = length;
 
     // last: find same filename and same length and ASK if same loopmarkers should be applied
     juce::String fileName = file.getFileName();
+    juce::String newLine = juce::String(juce::newLine.getDefault());
     for (auto it = allFiles.begin(); it != allFiles.end(); it++) {
         if (fileName == juce::File(it->absPath).getFileName() 
             && length == it->length) {
-            DBG("before Dialog");
             int answer = juce::AlertWindow::showYesNoCancelBox(juce::MessageBoxIconType::QuestionIcon, "possible Loopmarker found!",
-                juce::String("Found Loopmarker for a File with same name and length originally located here:") << juce::newLine <<
-                it->absPath << juce::newLine << juce::newLine <<
-                "Should these Loopmarker positions be used for this file?" << juce::newLine << juce::newLine <<
-                "Use Same: same Loopmarkers, changes will be saved to file above" << juce::newLine <<
-                "Copy: same Loopmarkers, changes will only affect this file" << juce::newLine <<
+                juce::String("Found Loopmarker for a File with same name and length originally located here:") + newLine +
+                it->absPath + newLine + newLine +
+                "Should these Loopmarker positions be used for this file?" + newLine + newLine +
+                "Use Same: same Loopmarkers, changes will be saved to file above" + newLine +
+                "Copy: same Loopmarkers, changes will only affect this file" + newLine +
                 "Neither: loopmarkers as if never opened before",
                 "Use Same", "Copy", "Neither", nullptr, nullptr);
-            DBG(answer);
             switch (answer) {
             case 1:
                 return &*it;
@@ -946,12 +954,12 @@ void MainComponent::saveAllSettingsToFile() {
     currentFile = nullptr;
 
     juce::var roots;
-    for (juce::File file : musicLibRoots) {
+    for (juce::File file : musicLibs) {
         juce::DynamicObject* fileObj = new juce::DynamicObject();
         fileObj->setProperty("path", file.getFullPathName());
         roots.append(juce::var(fileObj));
     }
-    obj->setProperty("musicLibRoots", roots);
+    obj->setProperty("musicLibs", roots);
 
     juce::var files;
     for(AudioFile file : allFiles) {
@@ -984,12 +992,12 @@ void MainComponent::loadAllSettingsFromFile() {
 
     
 
-        prop = obj->getProperty("musicLibRoots");
+        prop = obj->getProperty("musicLibs");
         if (prop != juce::var()) {
             for (juce::var var : *prop.getArray()) {
                 juce::File file = juce::File(var.getDynamicObject()->getProperty("path"));
 
-                musicLibRoots.push_back(file);
+                musicLibs.push_back(file);
             }
         }
 
@@ -999,7 +1007,7 @@ void MainComponent::loadAllSettingsFromFile() {
             fileBrowser.setRoot(loadedRoot);
 
             bool found = false;
-            for (auto libRoot : musicLibRoots) {
+            for (auto libRoot : musicLibs) {
                 if (libRoot == loadedRoot) {
                     found = true;
                     break;

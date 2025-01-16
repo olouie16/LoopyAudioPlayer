@@ -66,7 +66,7 @@ public:
     std::function<void(bool)> onValueChange;
     std::function<void(double, double)> onLoopMarkerChange;
 
-    double guiRefreshTime = 100; //ms;
+    double guiRefreshTime = 50; //ms;
     bool mouseIsDragged = false;
 
     void paint(juce::Graphics& g);
@@ -87,12 +87,14 @@ public:
     double getLeftLoopTimestamp(){return leftMarker.getTimeStamp();}
     double getRightLoopTimestamp(){return rightMarker.getTimeStamp();}
 
-    void loopMarkerClick(const juce::MouseEvent& e, bool isDoubleClick);
+    void loopMarkerClick(double atTimeValue, bool isNewPos, bool isDoubleClick);
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
     void mouseDoubleClick(const juce::MouseEvent& e) override;
 
+    void childrenChanged() override;
+    void setClickableTimeStamp(bool shouldBeClickable);
 
     void setLoopMarkersActive(bool active);
     void setWholeLoopMarkersActive(bool active);
@@ -104,6 +106,10 @@ private:
     LoopMarker rightMarker = LoopMarker(this);
 
     bool wholeLoopActive = false;
+    juce::Label* timeStampBox;
+    juce::Label* findTimeStampBox();
+
+    bool showMilliSeconds=false;
     juce::TextEditor inputBox;
     std::function<void()> inputBoxFadeFunction;
     juce::TimedCallback inputBoxFadeTimer{ [this] {inputBoxFadeFunction(); } };
