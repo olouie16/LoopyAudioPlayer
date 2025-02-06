@@ -3,7 +3,9 @@
 //==============================================================================
 MainComponent::MainComponent()
 {
-    setSize (1000, 700);
+    setSize(1000, 700);
+    setMinimumWidth(220);
+    setMinimumHeight(120);
 
     createButtonImages();
 
@@ -21,11 +23,10 @@ MainComponent::MainComponent()
     loopButton.setEnabled(true);
     addAndMakeVisible(loopButton);
 
-    musicLibRootButton.setImage(musicLibImage);
-    musicLibRootButton.onLeftClick = [this] {musicLibRootButtonLeftClicked(); };
-    musicLibRootButton.onRightClick = [this] {musicLibRootButtonRightClicked(); };
-    musicLibRootButton.setEnabled(true);
-    addAndMakeVisible(musicLibRootButton);
+    settingsButton.setImage(settingsImage);
+    settingsButton.onClick = [this] {settingsButtonClicked(); };
+    settingsButton.setEnabled(true);
+    addAndMakeVisible(settingsButton);
 
 
     volSlider.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -60,12 +61,16 @@ MainComponent::MainComponent()
     timeLine.startTimer(timeLine.guiRefreshTime);
     addAndMakeVisible(timeLine);
 
+    fileBrowser.setAdditionalPathsInCombo(&musicLibs);
+    fileBrowser.OnMusicLibButtonClick = [this] {musicLibRootButtonClicked(); };
+    myLookAndFeel.setColour(juce::TextButton::textColourOnId, juce::Colours::gold);
+    fileBrowser.sendLookAndFeelChange();
     fileBrowser.addListener(this);
     addAndMakeVisible(fileBrowser);
 
-    //musicLibViewWindow.setCentreRelative(0.5f, 0.5f);
-    musicLibViewWindow.onDelButtonClicked = [this] {deleteMusicLibRoot(); };
-    addChildComponent(musicLibViewWindow);
+    //settingsViewWindow.setCentreRelative(0.5f, 0.5f);
+    settingsViewWindow.onDelButtonClicked = [this] {deleteMusicLibRoot(); };
+    addChildComponent(settingsViewWindow);
 
     formatManager.registerBasicFormats();
     transportSource.addChangeListener(this);
@@ -102,17 +107,160 @@ void MainComponent::paint (juce::Graphics& g)
 void MainComponent::resized()
 {
 
-    playButton.setBounds(20, getHeight() - 70, 50, 50);
-    stopButton.setBounds(playButton.getRight() + 20, getHeight() - 70, 50, 50);
-    loopButton.setBounds(stopButton.getRight() + 20, getHeight() - 70, 50, 50);
+    initFlexBox();
+    flexBox.performLayout(juce::Rectangle(getWidth(),getHeight()));
+
+}
+
+void MainComponent::initFlexBox()
+{
+    int width = getWidth();
+
+    flexBox.items.clear();
+    bottomRowFb.items.clear();
+
+    flexBox.flexDirection = juce::FlexBox::Direction::column;
+    flexBox.flexWrap = juce::FlexBox::Wrap::noWrap;
+    flexBox.justifyContent = juce::FlexBox::JustifyContent::spaceAround;
+    flexBox.alignContent = juce::FlexBox::AlignContent::center;
+    flexBox.alignItems = juce::FlexBox::AlignItems::stretch;
     
-    volSlider.setBounds(loopButton.getRight() + 20, getHeight() - 70, std::min(400, getWidth() - 60 - 70 - loopButton.getRight() + 20), 50);
-    timeLine.setBounds(20,getHeight()-140,getWidth()-60,50);
-    crossFadeCheckBox.setBounds(volSlider.getRight() + 5, volSlider.getPosition().y, 80, 50);
-    crossFadeLabel.setBounds(crossFadeCheckBox.getRight()+3, getHeight() - 60, 40, 30);
-    crossFadeUnit.setBounds(crossFadeLabel.getRight(), crossFadeLabel.getPosition().y, 40, 30);
-    musicLibRootButton.setBounds(crossFadeUnit.getRight() + 20, getHeight() - 70, 50, 50);
-    fileBrowser.setBounds(20, 20, getWidth()-40, timeLine.getPosition().y - 20);
+
+    flexBox.items.add(juce::FlexItem(fileBrowser)
+        .withFlex(1, 1, 610)
+        .withMargin(juce::FlexItem::Margin(10, 10, 2, 10))
+        .withOrder(1)
+    );
+
+    flexBox.items.add(juce::FlexItem(timeLine)
+        .withFlex(0, 0, 30)
+        .withMargin(juce::FlexItem::Margin(2, 20, 2, 20))
+        .withOrder(2)
+    );
+
+
+    bottomRowFb.flexDirection = juce::FlexBox::Direction::row;
+    bottomRowFb.flexWrap = juce::FlexBox::Wrap::noWrap;
+    bottomRowFb.justifyContent = juce::FlexBox::JustifyContent::spaceAround;
+    bottomRowFb.alignContent = juce::FlexBox::AlignContent::center;
+    bottomRowFb.alignItems = juce::FlexBox::AlignItems::stretch;
+
+    bottomRowFb.items.add(juce::FlexItem(playButton)
+        .withFlex(0, 1, 50)
+        .withMinWidth(25)
+        .withOrder(1)
+    );
+
+    if (width > 400) {
+        stopButton.setVisible(true);
+        bottomRowFb.items.add(juce::FlexItem(stopButton)
+            .withFlex(0, 1, 50)
+            .withMinWidth(25)
+            .withOrder(2)
+        );
+    }
+    else {
+        stopButton.setVisible(false);
+    }
+
+    bottomRowFb.items.add(juce::FlexItem(loopButton)
+        .withFlex(0, 1, 50)
+        .withMinWidth(25)
+        .withOrder(3)
+    );
+
+    bottomRowFb.items.add(juce::FlexItem(volSlider)
+        .withFlex(1, 50, 200)
+        .withMaxWidth(300)
+        .withMinWidth(80)
+        .withOrder(4)
+    );
+
+
+    if (width > 500) {
+        crossFadeCheckBox.setVisible(true);
+        crossFadeLabel.setVisible(true);
+        crossFadeUnit.setVisible(true);
+        settingsButton.setVisible(true);
+
+
+        bottomRowFb.items.add(juce::FlexItem(crossFadeCheckBox)
+            .withFlex(0, 0, 100)
+            .withOrder(5)
+        );
+
+        bottomRowFb.items.add(juce::FlexItem(crossFadeLabel)
+            .withFlex(0, 1, 50)
+            .withHeight(25)
+            .withAlignSelf(juce::FlexItem::AlignSelf::center)
+            .withOrder(6)
+        );
+
+        bottomRowFb.items.add(juce::FlexItem(crossFadeUnit)
+            .withFlex(0, 0, 60)
+            .withOrder(7)
+        );
+
+        bottomRowFb.items.add(juce::FlexItem(settingsButton)
+            .withFlex(0, 1, 50)
+            .withOrder(8)
+        );
+    }
+    else {
+        crossFadeCheckBox.setVisible(false);
+        crossFadeLabel.setVisible(false);
+        crossFadeUnit.setVisible(false);
+        settingsButton.setVisible(false);
+    }
+
+    flexBox.items.add(juce::FlexItem(bottomRowFb)
+        .withFlex(0, 0.0001, 50)
+        .withMargin(juce::FlexItem::Margin(2, 15, 10, 15))
+        .withOrder(3)
+    );
+}
+
+void MainComponent::addMusicLib(const juce::String& libToAdd)
+{
+    juce::File f(libToAdd);
+
+    if (f.existsAsFile()) {
+        juce::AlertWindow::showMessageBox(juce::AlertWindow::WarningIcon,"File as Music Library", "The path " + f.getFullPathName() + " leads to a file and cannot be used as a music library. Please choose a directory.");
+        return;
+    }
+    juce::String msg = f.isDirectory()
+                        ? "Do you want to add " + f.getFullPathName() + " to your Music Librarys?"
+                        : "Could not find the directory " + f.getFullPathName() + " on your System. Do you want to add it anyway? (eg. for another device)";
+
+    bool answer = juce::AlertWindow::showOkCancelBox(juce::AlertWindow::QuestionIcon, "Add new Music Library?", msg, "Yes");
+
+    if (answer) {
+        musicLibs.push_back(f);
+        musicLibChanged();
+    }
+}
+
+void MainComponent::removeMusicLib(const juce::String& libToRemove)
+{
+    juce::File f = juce::File(libToRemove);
+    auto found = std::find(musicLibs.begin(), musicLibs.end(), f);
+    if (found == musicLibs.end()) {
+        juce::AlertWindow::showMessageBox(juce::AlertWindow::WarningIcon, "Removing not existing Music Library", "The path " + f.getFullPathName() + "could not be found inside your Music Librarys for removing.");
+        return;
+    }
+    //popup message here
+    bool answer = juce::AlertWindow::showOkCancelBox(juce::AlertWindow::QuestionIcon, "Remove Music Library?", "Do you want to remove " + f.getFullPathName() + " from your Music Librarys?", "Yes");
+    if (answer) {
+        musicLibs.erase(found);
+        musicLibChanged();
+    }
+}
+
+void MainComponent::musicLibChanged()
+{
+    fileBrowser.updateMusicLibsInCombo();
+    updateMusicLibsComboBox();
+    browserRootChanged(fileBrowser.getRoot());
 }
 
 void MainComponent::playButtonClicked()
@@ -150,43 +298,40 @@ void MainComponent::loopButtonClicked()
     }
 }
 
-void MainComponent::musicLibRootButtonLeftClicked() {
+void MainComponent::musicLibRootButtonClicked() {
     juce::File newRoot = fileBrowser.getRoot();
 
     if (newRoot.isDirectory()) {
 
         
         //remove if already in List
-        bool alreadyInList = false;
+        //bool alreadyInList = false;
         for (int i = 0; i < musicLibs.size(); i++) {
             if (newRoot == musicLibs[i]) {
-                alreadyInList = true;
-                musicLibs.erase(musicLibs.begin() + i);
-                musicLibRootButton.setImage(musicLibImage);
-                break;
+                //alreadyInList = true;
+                removeMusicLib(newRoot.getFullPathName());
+                return;
             }
         }
 
         //Add new musicLibRoot
-        if (!alreadyInList) {
-            musicLibs.push_back(newRoot);
-            musicLibRootButton.setImage(musicLibHighlightedImage);
-        }
+        //if (!alreadyInList) {
+            addMusicLib(newRoot.getFullPathName());
+        //}
 
     }
-    updateMusicLibsComboBox();
 }
 
-void MainComponent::musicLibRootButtonRightClicked()
+void MainComponent::settingsButtonClicked()
 {
     
-    musicLibViewWindow.setVisible(true);
-    musicLibViewWindow.enterModalState();
+    settingsViewWindow.setVisible(true);
+    settingsViewWindow.enterModalState();
 
 }
 
 void MainComponent::deleteMusicLibRoot() {
-    int index = musicLibViewWindow.musicLibViewContentComponent.pathsCombo.getSelectedId()-1;
+    int index = settingsViewWindow.musicLibViewContentComponent.pathsCombo.getSelectedId()-1;
     musicLibs.erase(musicLibs.begin()+index);
     updateMusicLibsComboBox();
     browserRootChanged(fileBrowser.getRoot());
@@ -194,7 +339,7 @@ void MainComponent::deleteMusicLibRoot() {
 
 void MainComponent::updateMusicLibsComboBox()
 {
-    juce::ComboBox* cb = &musicLibViewWindow.musicLibViewContentComponent.pathsCombo;
+    juce::ComboBox* cb = &settingsViewWindow.musicLibViewContentComponent.pathsCombo;
     cb->clear();
     for (int i = 0; i < musicLibs.size();i++) {
         cb->addItem(musicLibs[i].getFullPathName(), i+1);
@@ -214,9 +359,6 @@ void MainComponent::createButtonImages()
     juce::Colour wholeLoopCol = juce::Colours::blue;
     juce::Colour sectionLoopCol = juce::Colours::orange;
 
-    juce::Colour musicLibNormalCol = juce::Colours::lightcyan;
-    juce::Colour musicLibHighlightedCol = juce::Colours::gold;
-
     playImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
     juce::Graphics playGraphics(playImage);
     pauseImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
@@ -229,10 +371,9 @@ void MainComponent::createButtonImages()
     juce::Graphics wholeLoopGraphics(wholeLoopImage);
     sectionLoopImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
     juce::Graphics sectionLoopGraphics(sectionLoopImage);
-    musicLibImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
-    juce::Graphics musicLibGraphics(musicLibImage);
-    musicLibHighlightedImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
-    juce::Graphics musicLibHighlightedGraphics(musicLibHighlightedImage);
+    settingsImage = juce::Image(juce::Image::ARGB, imageSize, imageSize, true);
+    juce::Graphics settingsGraphics(settingsImage);
+
 
     imageSize = imageSize - 2 * borderSize;
 
@@ -335,34 +476,43 @@ void MainComponent::createButtonImages()
     sectionLoopGraphics.setColour(juce::Colours::black);
     sectionLoopGraphics.strokePath(loopShape, juce::PathStrokeType::PathStrokeType(outline));
 
-    float topDiff = 0.1 * imageSize;
-    float topBottomGab = 0.1 * imageSize;
-    juce::Path musicLibShape;
-    musicLibShape.startNewSubPath(0.5 * imageSize, topDiff + topBottomGab);
-    musicLibShape.lineTo(imageSize, topDiff + topBottomGab);
-    musicLibShape.lineTo(imageSize, imageSize - topBottomGab);
-    musicLibShape.lineTo(0, imageSize- topBottomGab);
-    musicLibShape.lineTo(0, topBottomGab);
-    musicLibShape.lineTo(0.3*imageSize, topBottomGab);
-    musicLibShape = musicLibShape.createPathWithRoundedCorners(0.1 * imageSize);
-    musicLibShape.closeSubPath();
 
-    musicLibGraphics.setOrigin(borderSize, borderSize);
-    musicLibGraphics.setColour(musicLibNormalCol);
-    musicLibGraphics.fillPath(musicLibShape);
-    musicLibGraphics.setColour(juce::Colours::black);
-    musicLibGraphics.strokePath(musicLibShape, juce::PathStrokeType::PathStrokeType(outline));
+    juce::Path settingsShape;
 
-    musicLibHighlightedGraphics.setOrigin(borderSize, borderSize);
-    musicLibHighlightedGraphics.setColour(musicLibHighlightedCol);
-    musicLibHighlightedGraphics.fillPath(musicLibShape);
-    musicLibHighlightedGraphics.setColour(juce::Colours::black);
-    musicLibHighlightedGraphics.strokePath(musicLibShape, juce::PathStrokeType::PathStrokeType(outline));
+    float innerCirlceRadius = 0.15 * imageSize;
+    float outerCirlceRadius = 0.4 * imageSize;
+    settingsShape.addEllipse(juce::Rectangle<float>(2*innerCirlceRadius, 2*innerCirlceRadius).withCentre(juce::Point<float>(0,0)));
 
-}
+    float toothHeight = 0.15 * imageSize;//on top of outerCircle
+    float toothRelWidth = 0.5;//
+    int nTooths = 8;
+    //settingsShape.addEllipse(juce::Rectangle<float>(outerCirlceRadius, outerCirlceRadius).withCentre(juce::Point<float>(0,0)));
 
-void MainComponent::settingsButtonClicked()
-{
+    float curAngle = 0;
+
+    settingsShape.startNewSubPath(0, outerCirlceRadius);
+
+    for (int i = 0; i < nTooths; ++i) {
+        settingsShape.lineTo(0, outerCirlceRadius);
+        settingsShape.applyTransform(juce::AffineTransform::rotation(juce::MathConstants<float>::twoPi / nTooths * 0.5*(1 - toothRelWidth)));
+        settingsShape.lineTo(0, outerCirlceRadius+ toothHeight);
+        settingsShape.applyTransform(juce::AffineTransform::rotation(juce::MathConstants<float>::twoPi / nTooths * (1 - toothRelWidth)));
+        settingsShape.lineTo(0, outerCirlceRadius+ toothHeight);
+        settingsShape.applyTransform(juce::AffineTransform::rotation(juce::MathConstants<float>::twoPi / nTooths * 0.5*(1 - toothRelWidth)));
+
+    }
+
+    settingsShape.applyTransform(juce::AffineTransform::rotation(juce::MathConstants<float>::twoPi / nTooths * (1 - toothRelWidth)));
+
+    settingsShape.closeSubPath();
+    settingsShape = settingsShape.createPathWithRoundedCorners(0.05 * imageSize);
+    settingsShape.setUsingNonZeroWinding(false);
+
+    settingsGraphics.setOrigin(imageSize / 2 + borderSize, imageSize / 2 + borderSize);
+    settingsGraphics.setColour(noLoopCol.darker(0.2));
+    settingsGraphics.fillPath(settingsShape);
+    settingsGraphics.setColour(juce::Colours::black);
+    settingsGraphics.strokePath(settingsShape, juce::PathStrokeType::PathStrokeType(outline));
 
 
 }
@@ -819,10 +969,10 @@ void MainComponent::browserRootChanged(const juce::File& newRoot)
     }
 
     if (isLibRoot) {
-        musicLibRootButton.setImage(musicLibHighlightedImage);
+        fileBrowser.setMusicLibState(true);
     }
     else {
-        musicLibRootButton.setImage(musicLibImage);
+        fileBrowser.setMusicLibState(false);
     }
 }
 
@@ -1013,7 +1163,6 @@ void MainComponent::loadAllSettingsFromFile() {
                     break;
                 }
             }
-            musicLibRootButton.setImage(found ? musicLibHighlightedImage : musicLibImage);
         }
 
         prop = obj->getProperty("audioFiles");
@@ -1027,7 +1176,8 @@ void MainComponent::loadAllSettingsFromFile() {
 
     }
 
-    updateMusicLibsComboBox();
+    musicLibChanged();
+
 }
 
 void ControlButton::setImage(juce::Image& image)
@@ -1038,12 +1188,45 @@ void ControlButton::setImage(juce::Image& image)
 
 void ControlButton::resized()
 {
-    juce::Image scaledImage = normalImage.rescaled(getWidth(), getHeight(), juce::Graphics::ResamplingQuality::highResamplingQuality);
 
-    setImages(false, true, true,
+    int size = juce::jmax(juce::jmin(getWidth(), getHeight()), 1);
+    juce::Image scaledImage = normalImage.rescaled(size, size, juce::Graphics::ResamplingQuality::highResamplingQuality);
+
+    setImages(true, false, true,
         scaledImage, 1, juce::Colours::transparentWhite,
         scaledImage, 1, juce::Colours::white.withAlpha(0.1f),
         scaledImage, 1, juce::Colours::white.withAlpha(0.3f));
 
 
+}
+
+
+
+void FileBrowserComp::getRoots(juce::StringArray& rootNames, juce::StringArray& rootPaths)
+{
+
+    getDefaultRoots(rootNames, rootPaths);
+
+    if (additionalPathsInCombo != nullptr) {
+
+        if (additionalPathsInCombo->size() > 0) {
+            rootPaths.add({});
+            rootNames.add({});
+        }
+
+        for (int i = 0; i < additionalPathsInCombo->size(); i++) {
+            juce::String path = additionalPathsInCombo->at(i).getFullPathName();
+            if (path != "") {
+
+                int index = rootPaths.indexOf(path);
+                if (index >= 0) {
+                    rootNames.remove(index);
+                    rootPaths.remove(index);
+                }
+                rootNames.add(path);
+                rootPaths.add(path);
+            }
+        }
+
+    }
 }

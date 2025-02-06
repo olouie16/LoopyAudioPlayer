@@ -3,7 +3,8 @@
 #include <JuceHeader.h>
 #include "TimeLine.h"
 #include "AudioFile.h"
-
+#include "OwnLookAndFeel.h"
+#include "mod_FileBrowserComponent.h"
 
 
 
@@ -20,21 +21,25 @@ public:
     const juce::WildcardFileFilter audioFileFilter;
 };
 
-class FileBrowserComp : public FileBrowserCompHelper, public juce::FileBrowserComponent
+class FileBrowserComp : public FileBrowserCompHelper, public juce::mod::FileBrowserComponent
 {
 public:
 
-    FileBrowserComp(): juce::FileBrowserComponent(juce::FileBrowserComponent::FileChooserFlags::openMode + juce::FileBrowserComponent::FileChooserFlags::canSelectFiles,
-                                                    juce::File(), &audioFileFilter, nullptr)
+    FileBrowserComp(OwnLookAndFeel* myLookAndFeel_): juce::mod::FileBrowserComponent(juce::FileBrowserComponent::FileChooserFlags::openMode + juce::FileBrowserComponent::FileChooserFlags::canSelectFiles,
+                                                    juce::File(), &audioFileFilter, nullptr, myLookAndFeel_)
     {
-        //hacky way to "remove" the filenameBox+label beneath
-        this->removeChildComponent(3);//label
-        this->removeChildComponent(2);//box
+
     }
 
+    void getRoots(juce::StringArray& rootNames, juce::StringArray& rootPaths) override;
 
+
+    void updateMusicLibsInCombo() { resetRecentPaths(); }
+
+
+    void setAdditionalPathsInCombo(std::vector<juce::File>* v) { additionalPathsInCombo = v; };
 private:
-
+    std::vector<juce::File>* additionalPathsInCombo = nullptr;
 
 };
 
@@ -72,9 +77,9 @@ private:
 
 
 
-class MusicLibViewContentComponent :public juce::Component{
+class SettingsViewContentComponent :public juce::Component{
 public:
-    MusicLibViewContentComponent() {
+    SettingsViewContentComponent() {
 
         setInterceptsMouseClicks(false, true);
 
@@ -151,7 +156,7 @@ public:
             .withFlex(1,1,40)
         );
     }
-    ~MusicLibViewContentComponent() {};
+    ~SettingsViewContentComponent() {};
 
     juce::FlexBox fb;
     juce::FlexBox fbButtons;
@@ -170,10 +175,10 @@ public:
 
 };
 
-class MusicLibViewWindow :public juce::ResizableWindow {
+class SettingsViewWindow :public juce::ResizableWindow {
 
 public:
-    MusicLibViewWindow(): juce::ResizableWindow("musicLibsWindow", true)
+    SettingsViewWindow(): juce::ResizableWindow("musicLibsWindow", true)
     {
 
         musicLibViewContentComponent.delButton.onClick = [this] {onDelButtonClicked(); };
@@ -187,7 +192,7 @@ public:
         setDraggable(true);
 
     };
-    ~MusicLibViewWindow() {};
+    ~SettingsViewWindow() {};
 
     void closeButtonPressed() {
 
@@ -196,7 +201,7 @@ public:
 
     }
 
-    MusicLibViewContentComponent musicLibViewContentComponent;
+    SettingsViewContentComponent musicLibViewContentComponent;
 
 
     std::function<void()> onDelButtonClicked;
@@ -210,7 +215,8 @@ public:
 */
 class MainComponent : public juce::AudioAppComponent,
                       public juce::FileBrowserListener,
-                      public juce::ChangeListener
+                      public juce::ChangeListener,
+                      public juce::ComponentBoundsConstrainer
 {
 public:
     //==============================================================================
@@ -235,7 +241,7 @@ private:
     ControlButton playButton;
     ControlButton stopButton;
     ControlButton loopButton;
-    ControlButton musicLibRootButton;
+    ControlButton settingsButton;
     juce::Slider volSlider;
     juce::ToggleButton crossFadeCheckBox;
     juce::Label crossFadeLabel;
@@ -277,7 +283,7 @@ private:
     };
     Loopmode loopmode;
 
-    std::unique_ptr<juce::FileChooser> chooser;
+    //std::unique_ptr<juce::FileChooser> chooser;
 
     juce::AudioFormatManager formatManager;
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
@@ -299,12 +305,23 @@ private:
     double fadeStartTime;
     double fadeEndTime;
 
-    FileBrowserComp fileBrowser{};
+    juce::FlexBox flexBox;
+    void initFlexBox();
+    juce::FlexBox bottomRowFb;
+    std::vector<juce::FlexItem> hiddenFlexItems;
+
+    OwnLookAndFeel myLookAndFeel;
+
+    FileBrowserComp fileBrowser{ &myLookAndFeel };
     std::vector<juce::File> musicLibs;
     std::vector<AudioFile> allFiles;
     AudioFile* currentFile=nullptr;
 
-    MusicLibViewWindow musicLibViewWindow;
+    void addMusicLib(const juce::String& libToAdd);
+    void removeMusicLib(const juce::String& libToRemove);
+    void musicLibChanged();
+
+    SettingsViewWindow settingsViewWindow;
 
     juce::Image playImage;
     juce::Image pauseImage;
@@ -312,19 +329,17 @@ private:
     juce::Image noLoopImage;
     juce::Image wholeLoopImage;
     juce::Image sectionLoopImage;
-    juce::Image musicLibImage;
-    juce::Image musicLibHighlightedImage;
+    juce::Image settingsImage;
 
     void playButtonClicked();
     void stopButtonClicked();
     void loopButtonClicked();
-    void musicLibRootButtonLeftClicked();
-    void musicLibRootButtonRightClicked();
+    void musicLibRootButtonClicked();
+    void settingsButtonClicked();
     void deleteMusicLibRoot();
     void updateMusicLibsComboBox();
 
     void createButtonImages();
-    void settingsButtonClicked();
     void volSliderValueChanged();
     void timeLineValueChanged(bool userChanged);
     void onCrossFadeCheckBoxChange();

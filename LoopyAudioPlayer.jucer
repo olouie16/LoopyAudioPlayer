@@ -6,6 +6,12 @@
   <MAINGROUP id="cksjjh" name="LoopyAudioPlayer">
     <GROUP id="{69926F5A-B63A-340C-EE75-CDAC660C36B5}" name="Source">
       <FILE id="vC6sO1" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
+      <FILE id="oCfHOc" name="mod_FileBrowserComponent.cpp" compile="1" resource="0"
+            file="Source/mod_FileBrowserComponent.cpp"/>
+      <FILE id="Shp0YQ" name="OwnLookAndFeel.h" compile="0" resource="0"
+            file="Source/OwnLookAndFeel.h"/>
+      <FILE id="Ym9Yfp" name="mod_FileBrowserComponent.h" compile="0" resource="0"
+            file="Source/mod_FileBrowserComponent.h"/>
       <FILE id="Qg2fv8" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
       <FILE id="aE2vmF" name="MainComponent.cpp" compile="1" resource="0"
             file="Source/MainComponent.cpp"/>
