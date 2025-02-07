@@ -83,11 +83,15 @@ public:
 
         setInterceptsMouseClicks(false, true);
 
-        textLabel.setText("Music Librarys", juce::NotificationType::dontSendNotification);
-        textLabel.setJustificationType(juce::Justification::centredTop);
-        textLabel.setFont(juce::Font(20));
-        textLabel.setInterceptsMouseClicks(false,false);
-        addAndMakeVisible(textLabel);
+        audioSettingsButton.setButtonText("Audio Settings");
+        addAndMakeVisible(audioSettingsButton);
+
+        musicLibsLabel.setText("Music Librarys", juce::NotificationType::dontSendNotification);
+        musicLibsLabel.setJustificationType(juce::Justification::centredLeft);
+        musicLibsLabel.setFont(juce::Font(14));
+        musicLibsLabel.setInterceptsMouseClicks(false, false);
+        addAndMakeVisible(musicLibsLabel);
+       
 
         addAndMakeVisible(pathsCombo);
 
@@ -97,71 +101,14 @@ public:
         backButton.setButtonText("back");
         addAndMakeVisible(backButton);
 
-        fb.flexDirection = juce::FlexBox::Direction::column;
-        fb.flexWrap = juce::FlexBox::Wrap::noWrap;
-        fb.justifyContent = juce::FlexBox::JustifyContent::spaceAround;
-        fb.alignContent = juce::FlexBox::AlignContent::center;
-        fb.alignItems = juce::FlexBox::AlignItems::stretch;
-        
-
-        fb.items.add(juce::FlexItem(textLabel)
-            .withFlex(1, 1, 50)
-            .withMaxHeight(50)
-        );
-        
-        fbCombo.flexDirection = juce::FlexBox::Direction::row;
-        fbCombo.flexWrap = juce::FlexBox::Wrap::noWrap;
-        fbCombo.justifyContent = juce::FlexBox::JustifyContent::center;
-        fbCombo.alignContent = juce::FlexBox::AlignContent::stretch;
-        fbCombo.alignItems = juce::FlexBox::AlignItems::stretch;
-
-        fbCombo.items.add(juce::FlexItem().withFlex(0.5, 1, 30));
-        fbCombo.items.add(juce::FlexItem(pathsCombo)
-            .withFlex(5, 2, 400)
-            //.withMinHeight(20)
-            //.withMaxHeight(60)
-            .withMinWidth(50)
-        );
-        fbCombo.items.add(juce::FlexItem().withFlex(0.5, 1, 30)
-        );
-
-
-        fb.items.add(juce::FlexItem(fbCombo)
-            //.withMargin(juce::FlexItem::Margin(20,50,20,50))
-            .withMaxHeight(60)
-            .withMinHeight(20)
-            .withFlex(1,1,40)
-        );
-
-        fbButtons.flexDirection = juce::FlexBox::Direction::row;
-        fbButtons.flexWrap = juce::FlexBox::Wrap::noWrap;
-        fbButtons.justifyContent = juce::FlexBox::JustifyContent::center;
-        fbButtons.alignItems = juce::FlexBox::AlignItems::stretch;
-
-        fbButtons.items.add(juce::FlexItem().withFlex(0.5, 1, 30));
-        fbButtons.items.add(juce::FlexItem(delButton)
-            .withFlex(1, 0.25, 150)
-            .withMaxWidth(150)
-        );
-        fbButtons.items.add(juce::FlexItem().withFlex(5, 1.5, 100));
-        fbButtons.items.add(juce::FlexItem(backButton)
-            .withFlex(1, 0.25, 150)
-            .withMaxWidth(150)
-        );
-        fbButtons.items.add(juce::FlexItem().withFlex(0.5, 1, 30));
-
-        fb.items.add(juce::FlexItem(fbButtons)
-            .withMinHeight(20)
-            .withMaxHeight(60)
-            .withFlex(1,1,40)
-        );
     }
     ~SettingsViewContentComponent() {};
 
     juce::FlexBox fb;
-    juce::FlexBox fbButtons;
-    juce::FlexBox fbCombo;
-    juce::Label textLabel;
+    juce::FlexBox fbMusicLibs;
+
+    juce::TextButton audioSettingsButton;
+    juce::Label musicLibsLabel;
     juce::ComboBox pathsCombo;
     juce::TextButton delButton;
     juce::TextButton backButton;
@@ -169,26 +116,28 @@ public:
 
     void resized() {
 
-
+        initFlexBoxes();
         fb.performLayout(getLocalBounds());
     }
-
+private:
+    void initFlexBoxes();
 };
 
-class SettingsViewWindow :public juce::ResizableWindow {
+class SettingsViewWindow :public juce::DocumentWindow {
 
 public:
-    SettingsViewWindow(): juce::ResizableWindow("musicLibsWindow", true)
+    SettingsViewWindow(): juce::DocumentWindow("Settings", juce::Colours::white, juce::DocumentWindow::TitleBarButtons::closeButton, true)
     {
 
         musicLibViewContentComponent.delButton.onClick = [this] {onDelButtonClicked(); };
         musicLibViewContentComponent.backButton.onClick = [this] {closeButtonPressed(); };
+        musicLibViewContentComponent.audioSettingsButton.onClick = [this] {onAudioSettingsButtonClicked(); };
 
         setContentComponent(&musicLibViewContentComponent);
-
+        setBackgroundColour(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
         setSize(500, 200);
         setCentreRelative(0.2f, 0.2f);
-        setResizable(true, true);
+        setResizable(false, false);
         setDraggable(true);
 
     };
@@ -205,6 +154,7 @@ public:
 
 
     std::function<void()> onDelButtonClicked;
+    std::function<void()> onAudioSettingsButtonClicked;
 };
 
 
@@ -220,7 +170,7 @@ class MainComponent : public juce::AudioAppComponent,
 {
 public:
     //==============================================================================
-    MainComponent();
+    MainComponent() ;
     ~MainComponent() override;
     //==============================================================================
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
@@ -306,9 +256,12 @@ private:
     double fadeEndTime;
 
     juce::FlexBox flexBox;
-    void initFlexBox();
     juce::FlexBox bottomRowFb;
-    std::vector<juce::FlexItem> hiddenFlexItems;
+    void initFlexBox();
+
+    juce::AudioDeviceManager customDeviceManager;
+    juce::AudioDeviceSelectorComponent deviceSelector;
+    juce::File audioDeviceSettings;
 
     OwnLookAndFeel myLookAndFeel;
 
@@ -323,6 +276,23 @@ private:
 
     SettingsViewWindow settingsViewWindow;
 
+    class AudioDeviceSelectorWindow : public juce::DocumentWindow
+    {
+    public:
+        AudioDeviceSelectorWindow() : juce::DocumentWindow("Audio Device Settings",
+            juce::Colours::white,
+            juce::DocumentWindow::TitleBarButtons::closeButton,
+            true)
+        {
+        }
+        void closeButtonPressed() override
+        {
+            setVisible(false);
+        }
+    };
+    AudioDeviceSelectorWindow deviceSelectorWindow;
+
+
     juce::Image playImage;
     juce::Image pauseImage;
     juce::Image stopImage;
@@ -336,6 +306,9 @@ private:
     void loopButtonClicked();
     void musicLibRootButtonClicked();
     void settingsButtonClicked();
+    void openAudioSettings();
+    void closeAudioSettings();
+
     void deleteMusicLibRoot();
     void updateMusicLibsComboBox();
 
@@ -364,7 +337,7 @@ private:
     void openFile(const juce::File& file);
     void saveAllSettingsToFile();
     void loadAllSettingsFromFile();
-
+    void initAudioSettings();
 
     const double maxCrossFade = 20;
 

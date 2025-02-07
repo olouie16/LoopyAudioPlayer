@@ -98,7 +98,7 @@ public:
 
     void setLoopMarkersActive(bool active);
     void setWholeLoopMarkersActive(bool active);
-    juce::Image getActiveLoopMarkerIcon();
+    const juce::Image getActiveLoopMarkerIcon();
 
 private:
     void timerCallback() final { onTimerCallback(); };

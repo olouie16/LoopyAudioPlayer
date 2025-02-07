@@ -15,7 +15,7 @@ void LoopMarker::paint(juce::Graphics& g)
 }
 
 void LoopMarker::resized() {
-    setPosition(par->getPositionOfValue(timeStamp), par->getHeight()/2 - height - 6);
+    setPosition(par->getPositionOfValue(timeStamp), par->getHeight()/2.0 - height - 6);
 }
 
 void LoopMarker::setActive(bool active) {
@@ -530,7 +530,7 @@ void TimeLine::setWholeLoopMarkersActive(bool active)
     wholeLoopActive = active;
 }
 
-juce::Image TimeLine::getActiveLoopMarkerIcon()
+const juce::Image TimeLine::getActiveLoopMarkerIcon()
 {
     return leftMarker.activeIcon;
 }

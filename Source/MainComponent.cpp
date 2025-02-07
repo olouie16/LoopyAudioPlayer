@@ -2,6 +2,16 @@
 
 //==============================================================================
 MainComponent::MainComponent()
+       :juce::AudioAppComponent(customDeviceManager),
+        deviceSelector(customDeviceManager,
+        0,     // minimum input channels
+        0,     // maximum input channels
+        2,     // minimum output channels
+        256,   // maximum output channels
+        false, // ability to select midi inputs
+        false, // ability to select midi output device
+        false, // treat channels as stereo pairs
+        true) // hide advanced options
 {
     setSize(1000, 700);
     setMinimumWidth(220);
@@ -70,13 +80,20 @@ MainComponent::MainComponent()
 
     //settingsViewWindow.setCentreRelative(0.5f, 0.5f);
     settingsViewWindow.onDelButtonClicked = [this] {deleteMusicLibRoot(); };
+    settingsViewWindow.onAudioSettingsButtonClicked = [this] {openAudioSettings(); };
     addChildComponent(settingsViewWindow);
+
+    deviceSelectorWindow.setContentNonOwned(&deviceSelector, true);
+    deviceSelectorWindow.setBackgroundColour(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+    deviceSelectorWindow.setSize(500, 500);
+    deviceSelectorWindow.setResizable(false, false);
+    deviceSelectorWindow.setDraggable(true);
+    addChildComponent(deviceSelectorWindow);
 
     formatManager.registerBasicFormats();
     transportSource.addChangeListener(this);
 
     //fileBufferThreat.startThread();
-    setAudioChannels(2, 2);
 
     changeState(TransportState::Stopped);
     playButton.setEnabled(false);
@@ -84,8 +101,14 @@ MainComponent::MainComponent()
 
     musicLibs = std::vector<juce::File>();
     allFiles = std::vector<AudioFile>();
+    audioDeviceSettings = juce::File(juce::File::getSpecialLocation(juce::File::SpecialLocationType::userApplicationDataDirectory).getChildFile("LoopyAudioPlayer").getChildFile("audioDeviceSettings.xml"));
 
     loadAllSettingsFromFile();
+
+    initAudioSettings();
+
+    DBG(audioDeviceSettings.getFullPathName());
+
 }
 
 MainComponent::~MainComponent()
@@ -94,6 +117,7 @@ MainComponent::~MainComponent()
     shutdownAudio();
     //fileBufferThreat.stopThread(10000);
 }
+
 
 //==============================================================================
 void MainComponent::paint (juce::Graphics& g)
@@ -324,10 +348,18 @@ void MainComponent::musicLibRootButtonClicked() {
 
 void MainComponent::settingsButtonClicked()
 {
-    
     settingsViewWindow.setVisible(true);
-    settingsViewWindow.enterModalState();
 
+}
+
+void MainComponent::openAudioSettings()
+{
+    deviceSelectorWindow.setVisible(true);
+}
+
+void MainComponent::closeAudioSettings()
+{
+    deviceSelectorWindow.setVisible(false);
 }
 
 void MainComponent::deleteMusicLibRoot() {
@@ -781,7 +813,7 @@ void MainComponent::changeState(TransportState newState)
             timeLine.setClickableTimeStamp(true);
             break;
         case Starting:
-            playButton.setImage(pauseImage);
+            //playButton.setImage(pauseImage);
             transportSource.start();
             timeLine.setClickableTimeStamp(false);
             break;
@@ -906,6 +938,8 @@ juce::String MainComponent::numberToTimeStamp(double n)
 }
 
 void MainComponent::initTimeLine() {
+
+   
     timeLine.setRange(0.0, transportSource.getLengthInSeconds(), 0);
     timeLine.updateLoopMarkers();
     updateTimeLine();
@@ -1075,8 +1109,8 @@ void MainComponent::openFile(const juce::File& file)
 
 
             currentFile =  findFileInAllFiles(file);
-
             initTimeLine();
+
             //changeState(state);
             changeLoopmode(loopmode);
 
@@ -1121,6 +1155,12 @@ void MainComponent::saveAllSettingsToFile() {
 
 
     settingsFile.replaceWithText(juce::JSON::toString(json));
+
+
+
+    auto audioSettings = customDeviceManager.createStateXml();
+    audioDeviceSettings.create();
+    audioSettings.get()->writeTo(audioDeviceSettings);
 }
 
 void MainComponent::loadAllSettingsFromFile() {
@@ -1180,6 +1220,57 @@ void MainComponent::loadAllSettingsFromFile() {
 
 }
 
+void MainComponent::initAudioSettings()
+{
+
+//select directsound for easier device switch( eg. for headphones)
+#if _WINDOWS
+    if (!audioDeviceSettings.existsAsFile()) {
+
+
+        juce::OwnedArray< juce::AudioIODeviceType > ioTypes;
+        customDeviceManager.createAudioDeviceTypes(ioTypes);
+        juce::String primaryDeviceName = "";
+        bool directSoundFound = false;
+        for (int i = 0; i < ioTypes.size();++i) {
+            if (ioTypes[i]->getTypeName() == "DirectSound") {
+                directSoundFound = true;
+                ioTypes[i]->scanForDevices();
+                juce::StringArray deviceNames (ioTypes[i]->getDeviceNames());
+                primaryDeviceName = deviceNames[0];
+            }
+        };
+
+        if (directSoundFound) {
+            customDeviceManager.initialise(0, 2, nullptr, true, primaryDeviceName);
+            auto setup = customDeviceManager.getAudioDeviceSetup();
+            auto bufferSizes = customDeviceManager.getCurrentAudioDevice()->getAvailableBufferSizes();
+            bufferSizes.sort();
+            int index = -1;
+            for (int i = bufferSizes.size() - 1; i >= 0; --i) {
+                if (bufferSizes[i] < 500) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index >= 0) {
+                setup.bufferSize = bufferSizes[index];
+            }
+            else {
+                setup.bufferSize = customDeviceManager.getCurrentAudioDevice()->getDefaultBufferSize();
+            }
+            customDeviceManager.setAudioDeviceSetup(setup, true);
+        }
+    }
+
+#endif
+    auto settings = juce::XmlDocument::parse(audioDeviceSettings);
+    setAudioChannels(0, 2, settings.get());
+
+}
+
+
+
 void ControlButton::setImage(juce::Image& image)
 {
     normalImage = image;
@@ -1201,7 +1292,6 @@ void ControlButton::resized()
 }
 
 
-
 void FileBrowserComp::getRoots(juce::StringArray& rootNames, juce::StringArray& rootPaths)
 {
 
@@ -1216,7 +1306,7 @@ void FileBrowserComp::getRoots(juce::StringArray& rootNames, juce::StringArray& 
 
         for (int i = 0; i < additionalPathsInCombo->size(); i++) {
             juce::String path = additionalPathsInCombo->at(i).getFullPathName();
-            if (path != "") {
+            if (path != "" && additionalPathsInCombo->at(i).isDirectory()) {
 
                 int index = rootPaths.indexOf(path);
                 if (index >= 0) {
@@ -1229,4 +1319,73 @@ void FileBrowserComp::getRoots(juce::StringArray& rootNames, juce::StringArray& 
         }
 
     }
+}
+
+void SettingsViewContentComponent::initFlexBoxes()
+{
+    fb.items.clear();
+    fbMusicLibs.items.clear();
+
+    fb.flexDirection = juce::FlexBox::Direction::column;
+    fb.flexWrap = juce::FlexBox::Wrap::noWrap;
+    fb.justifyContent = juce::FlexBox::JustifyContent::spaceAround;
+    fb.alignContent = juce::FlexBox::AlignContent::center;
+    fb.alignItems = juce::FlexBox::AlignItems::stretch;
+
+
+    fb.items.add(juce::FlexItem(audioSettingsButton)
+        .withFlex(1, 1, 50)
+        .withMaxWidth(300)
+        .withMaxHeight(60)
+        .withMinHeight(30)
+        .withMargin(juce::FlexItem::Margin(20, 40, 10, 40))
+        //.withAlignSelf(juce::FlexItem::AlignSelf::flexStart)
+    );
+
+
+    fb.items.add(juce::FlexItem(musicLibsLabel)
+        .withFlex(1, 1, 50)
+        .withMaxHeight(50)
+        .withMinHeight(30)
+        .withMargin(juce::FlexItem::Margin(10, 40, 2, 40))
+    );
+
+    fbMusicLibs.flexDirection = juce::FlexBox::Direction::row;
+    fbMusicLibs.flexWrap = juce::FlexBox::Wrap::noWrap;
+    fbMusicLibs.justifyContent = juce::FlexBox::JustifyContent::spaceBetween;
+    fbMusicLibs.alignContent = juce::FlexBox::AlignContent::stretch;
+    fbMusicLibs.alignItems = juce::FlexBox::AlignItems::stretch;
+
+    fbMusicLibs.items.add(juce::FlexItem(pathsCombo)
+        .withFlex(4, 2, 400)
+        .withMargin(juce::FlexItem::Margin(0, 10, 0, 10))
+        //.withMinHeight(20)
+        //.withMaxHeight(60)
+        .withMinWidth(150)
+    );
+
+
+
+
+    fbMusicLibs.items.add(juce::FlexItem(delButton)
+        .withFlex(1, 1, 150)
+        .withMargin(juce::FlexItem::Margin(0, 10, 0, 10))
+        .withMaxWidth(300)
+        .withMinWidth(70)
+    );
+    fbMusicLibs.items.add(juce::FlexItem(backButton)
+        .withFlex(1, 1, 150)
+        .withMargin(juce::FlexItem::Margin(0, 10, 0, 10))
+        .withMaxWidth(300)
+        .withMinWidth(50)
+    );
+
+    fb.items.add(juce::FlexItem(fbMusicLibs)
+        .withMargin(juce::FlexItem::Margin(5,30,20,30))
+        .withMaxHeight(60)
+        .withMinHeight(30)
+        .withFlex(1, 1, 50)
+    );
+
+
 }
