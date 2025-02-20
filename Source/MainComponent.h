@@ -101,17 +101,44 @@ public:
         backButton.setButtonText("back");
         addAndMakeVisible(backButton);
 
+
+        crossFadeTitelLabel.setText("default CrossFade Settings (used if not changed for this file yet)", juce::NotificationType::dontSendNotification);
+        crossFadeTitelLabel.setJustificationType(juce::Justification::centredLeft);
+        crossFadeTitelLabel.setFont(juce::Font(14));
+        crossFadeTitelLabel.setInterceptsMouseClicks(false, false);
+        addAndMakeVisible(crossFadeTitelLabel);
+        
+
+        defaultCrossFadeToggle.setButtonText("active");
+        addAndMakeVisible(defaultCrossFadeToggle);
+
+        defaultCrossFadeLabel.setEditable(true);
+        defaultCrossFadeLabel.setText("0", juce::NotificationType::dontSendNotification);
+        defaultCrossFadeLabel.setJustificationType(juce::Justification::centredRight);
+        addAndMakeVisible(defaultCrossFadeLabel);
+
+        crossFadeUnitLabel.setText("secs", juce::NotificationType::dontSendNotification);
+        crossFadeUnitLabel.setJustificationType(juce::Justification::centredLeft);
+        crossFadeUnitLabel.setFont(juce::Font(12));
+        crossFadeUnitLabel.setInterceptsMouseClicks(false, false);
+        addAndMakeVisible(crossFadeUnitLabel);
     }
     ~SettingsViewContentComponent() {};
 
     juce::FlexBox fb;
     juce::FlexBox fbMusicLibs;
+    juce::FlexBox fbCrossFade;
 
     juce::TextButton audioSettingsButton;
     juce::Label musicLibsLabel;
     juce::ComboBox pathsCombo;
     juce::TextButton delButton;
     juce::TextButton backButton;
+
+    juce::Label crossFadeTitelLabel;
+    juce::ToggleButton defaultCrossFadeToggle;
+    juce::Label defaultCrossFadeLabel;
+    juce::Label crossFadeUnitLabel;
 
 
     void resized() {
@@ -129,16 +156,19 @@ public:
     SettingsViewWindow(): juce::DocumentWindow("Settings", juce::Colours::white, juce::DocumentWindow::TitleBarButtons::closeButton, true)
     {
 
-        musicLibViewContentComponent.delButton.onClick = [this] {onDelButtonClicked(); };
-        musicLibViewContentComponent.backButton.onClick = [this] {closeButtonPressed(); };
-        musicLibViewContentComponent.audioSettingsButton.onClick = [this] {onAudioSettingsButtonClicked(); };
+        settingsViewContentComponent.delButton.onClick = [this] {onDelButtonClicked(); };
+        settingsViewContentComponent.backButton.onClick = [this] {closeButtonPressed(); };
+        settingsViewContentComponent.audioSettingsButton.onClick = [this] {onAudioSettingsButtonClicked(); };
+        settingsViewContentComponent.defaultCrossFadeToggle.onStateChange = [this] {onDefaultCrossFadeToggleChange(); };
+        defaultCrossFadeLabel = &settingsViewContentComponent.defaultCrossFadeLabel;
 
-        setContentComponent(&musicLibViewContentComponent);
+
+        setContentComponent(&settingsViewContentComponent);
         setBackgroundColour(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
-        setSize(500, 200);
-        setCentreRelative(0.2f, 0.2f);
+        setSize(550, 350);
         setResizable(false, false);
         setDraggable(true);
+
 
     };
     ~SettingsViewWindow() {};
@@ -150,11 +180,16 @@ public:
 
     }
 
-    SettingsViewContentComponent musicLibViewContentComponent;
 
+    SettingsViewContentComponent settingsViewContentComponent;
+
+    juce::Label* defaultCrossFadeLabel;
 
     std::function<void()> onDelButtonClicked;
     std::function<void()> onAudioSettingsButtonClicked;
+    std::function<void()> onDefaultCrossFadeToggleChange;
+    //std::function<void()> onDefaultCrossFadeTextEditShow;
+    //std::function<void()> onDefaultCrossFadeTextEditHide;
 };
 
 
@@ -233,7 +268,6 @@ private:
     };
     Loopmode loopmode;
 
-    //std::unique_ptr<juce::FileChooser> chooser;
 
     juce::AudioFormatManager formatManager;
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
@@ -244,11 +278,13 @@ private:
     double curVolume=1;
 
     double crossFade = 0;
-    //juce::TimeSliceThread fileBufferThreat = juce::TimeSliceThread("fileBufferThreat");
     bool inTransition = false;
     double crossFadeProgress = 0;
     juce::int64 otherNextReadPos;
     int curPosition=0;
+
+    bool defaultCrossFadeActive = false;
+    double defaultCrossFadeLength = 0;
 
     double loopStartTime;
     double loopEndTime;
@@ -283,8 +319,8 @@ private:
             juce::Colours::white,
             juce::DocumentWindow::TitleBarButtons::closeButton,
             true)
-        {
-        }
+        {}
+
         void closeButtonPressed() override
         {
             setVisible(false);
@@ -311,13 +347,17 @@ private:
 
     void deleteMusicLibRoot();
     void updateMusicLibsComboBox();
+    void onDefaultCrossFadeToggleChange();
+    void onDefaultCrossFadeTextEditShow();
+    void onDefaultCrossFadeTextEditHide();
+
 
     void createButtonImages();
     void volSliderValueChanged();
     void timeLineValueChanged(bool userChanged);
     void onCrossFadeCheckBoxChange();
     void onCrossFadeTextEditShow();
-    void onCrossFadeTextEditHide();
+    void onCrossFadeTextEditHide(bool userChanged);
 
     void fileDoubleClicked(const juce::File& file);
     void selectionChanged() {};

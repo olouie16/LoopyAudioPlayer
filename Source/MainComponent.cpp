@@ -55,7 +55,7 @@ MainComponent::MainComponent()
     crossFadeLabel.setText("1",juce::NotificationType::dontSendNotification);
     crossFadeLabel.setEditable(true);
     crossFadeLabel.onEditorShow = [this]() {onCrossFadeTextEditShow(); };
-    crossFadeLabel.onEditorHide = [this]() {onCrossFadeTextEditHide(); };
+    crossFadeLabel.onEditorHide = [this]() {onCrossFadeTextEditHide(true); };
     addAndMakeVisible(crossFadeLabel);
 
     crossFadeUnit.setText("sek", juce::NotificationType::dontSendNotification);
@@ -64,7 +64,6 @@ MainComponent::MainComponent()
     timeLine.setSliderStyle(juce::Slider::LinearHorizontal);
     timeLine.setRange(0.0,0.01,0.01);
     timeLine.setValue(0.0);
-    //timeLine.setTextBoxIsEditable(false);
     timeLine.onValueChange = [this](bool userChanged=false) {timeLineValueChanged(userChanged); };
     timeLine.onTimerCallback = [this]() {updateTimeLine(); };
     timeLine.onLoopMarkerChange = [this](double left, double right) {setLoopTimeStamps(left, right); };
@@ -72,28 +71,31 @@ MainComponent::MainComponent()
     addAndMakeVisible(timeLine);
 
     fileBrowser.setAdditionalPathsInCombo(&musicLibs);
-    fileBrowser.OnMusicLibButtonClick = [this] {musicLibRootButtonClicked(); };
+    fileBrowser.OnMusicLibButtonClick = [this]() {musicLibRootButtonClicked(); };
     myLookAndFeel.setColour(juce::TextButton::textColourOnId, juce::Colours::gold);
     fileBrowser.sendLookAndFeelChange();
     fileBrowser.addListener(this);
     addAndMakeVisible(fileBrowser);
 
-    //settingsViewWindow.setCentreRelative(0.5f, 0.5f);
-    settingsViewWindow.onDelButtonClicked = [this] {deleteMusicLibRoot(); };
-    settingsViewWindow.onAudioSettingsButtonClicked = [this] {openAudioSettings(); };
+    settingsViewWindow.onDelButtonClicked = [this]() {deleteMusicLibRoot(); };
+    settingsViewWindow.onAudioSettingsButtonClicked = [this]() {openAudioSettings(); };
+    settingsViewWindow.setCentrePosition(getBounds().getCentre());
+    settingsViewWindow.onDefaultCrossFadeToggleChange = [this]() {onDefaultCrossFadeToggleChange(); };
+    settingsViewWindow.defaultCrossFadeLabel->onEditorShow = [this]() {onDefaultCrossFadeTextEditShow(); };
+    settingsViewWindow.defaultCrossFadeLabel->onEditorHide = [this]() {onDefaultCrossFadeTextEditHide(); };
+
     addChildComponent(settingsViewWindow);
 
     deviceSelectorWindow.setContentNonOwned(&deviceSelector, true);
     deviceSelectorWindow.setBackgroundColour(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
-    deviceSelectorWindow.setSize(500, 500);
+    deviceSelectorWindow.setSize(400, 400);
+    deviceSelectorWindow.setCentrePosition(settingsViewWindow.getBounds().getCentre());
     deviceSelectorWindow.setResizable(false, false);
     deviceSelectorWindow.setDraggable(true);
     addChildComponent(deviceSelectorWindow);
 
     formatManager.registerBasicFormats();
     transportSource.addChangeListener(this);
-
-    //fileBufferThreat.startThread();
 
     changeState(TransportState::Stopped);
     playButton.setEnabled(false);
@@ -107,15 +109,12 @@ MainComponent::MainComponent()
 
     initAudioSettings();
 
-    DBG(audioDeviceSettings.getFullPathName());
-
 }
 
 MainComponent::~MainComponent()
 {
     saveAllSettingsToFile();
     shutdownAudio();
-    //fileBufferThreat.stopThread(10000);
 }
 
 
@@ -329,19 +328,16 @@ void MainComponent::musicLibRootButtonClicked() {
 
         
         //remove if already in List
-        //bool alreadyInList = false;
         for (int i = 0; i < musicLibs.size(); i++) {
             if (newRoot == musicLibs[i]) {
-                //alreadyInList = true;
                 removeMusicLib(newRoot.getFullPathName());
                 return;
             }
         }
 
         //Add new musicLibRoot
-        //if (!alreadyInList) {
-            addMusicLib(newRoot.getFullPathName());
-        //}
+        addMusicLib(newRoot.getFullPathName());
+
 
     }
 }
@@ -363,7 +359,7 @@ void MainComponent::closeAudioSettings()
 }
 
 void MainComponent::deleteMusicLibRoot() {
-    int index = settingsViewWindow.musicLibViewContentComponent.pathsCombo.getSelectedId()-1;
+    int index = settingsViewWindow.settingsViewContentComponent.pathsCombo.getSelectedId()-1;
     musicLibs.erase(musicLibs.begin()+index);
     updateMusicLibsComboBox();
     browserRootChanged(fileBrowser.getRoot());
@@ -371,11 +367,41 @@ void MainComponent::deleteMusicLibRoot() {
 
 void MainComponent::updateMusicLibsComboBox()
 {
-    juce::ComboBox* cb = &settingsViewWindow.musicLibViewContentComponent.pathsCombo;
+    juce::ComboBox* cb = &settingsViewWindow.settingsViewContentComponent.pathsCombo;
     cb->clear();
     for (int i = 0; i < musicLibs.size();i++) {
         cb->addItem(musicLibs[i].getFullPathName(), i+1);
     }
+
+}
+
+void MainComponent::onDefaultCrossFadeToggleChange()
+{
+    juce::ToggleButton* toggle = &settingsViewWindow.settingsViewContentComponent.defaultCrossFadeToggle;
+
+    defaultCrossFadeActive = toggle->getToggleState();
+}
+
+void MainComponent::onDefaultCrossFadeTextEditShow()
+{
+    juce::TextEditor* edit = settingsViewWindow.defaultCrossFadeLabel->getCurrentTextEditor();
+    edit->setMultiLine(false);
+    edit->setInputFilter(&crossFadeEditFilter, false);
+}
+
+void MainComponent::onDefaultCrossFadeTextEditHide()
+{
+    juce::Label* label = settingsViewWindow.defaultCrossFadeLabel;
+    juce::String text = label->getText();
+
+    double n = timeStampToNumber(text);
+
+    if (n > maxCrossFade) {
+        n = maxCrossFade;
+        label->setText(juce::String(maxCrossFade), juce::NotificationType::dontSendNotification);
+    }
+
+    defaultCrossFadeLength = n;
 
 }
 
@@ -459,7 +485,6 @@ void MainComponent::createButtonImages()
     loopShape.lineTo(juce::Point<float>(0, -(innerRadius - loopArrowWidth)).rotatedAboutOrigin<float>(headAngle));
     loopShape.lineTo(juce::Point<float>(0, -innerRadius).rotatedAboutOrigin<float>(headAngle));
     loopShape.addCentredArc(0, 0, innerRadius, innerRadius, 0, headAngle, tailAngle);
-    //loopPath.lineTo(juce::Point<float>(0, -outerRadius).rotatedAboutOrigin<float>(tailAngle));
 
     loopShape.closeSubPath();
     loopShape.addPath(loopShape, juce::AffineTransform::rotation(juce::float_Pi));
@@ -515,10 +540,9 @@ void MainComponent::createButtonImages()
     float outerCirlceRadius = 0.4 * imageSize;
     settingsShape.addEllipse(juce::Rectangle<float>(2*innerCirlceRadius, 2*innerCirlceRadius).withCentre(juce::Point<float>(0,0)));
 
-    float toothHeight = 0.15 * imageSize;//on top of outerCircle
-    float toothRelWidth = 0.5;//
+    float toothHeight = 0.15 * imageSize;//on top of outerCircleRadius
+    float toothRelWidth = 0.5;//1:only tooth, 0 no tooth
     int nTooths = 8;
-    //settingsShape.addEllipse(juce::Rectangle<float>(outerCirlceRadius, outerCirlceRadius).withCentre(juce::Point<float>(0,0)));
 
     float curAngle = 0;
 
@@ -599,11 +623,13 @@ void MainComponent::timeLineValueChanged(bool userChanged)
 
 void MainComponent::onCrossFadeCheckBoxChange()
 {
-    if (crossFadeCheckBox.getToggleState()) {
-        setCrossFade(timeStampToNumber(crossFadeLabel.getText()));
-    }
-    else {
-        setCrossFade(0);
+    bool toggleState = crossFadeCheckBox.getToggleState();
+
+    setCrossFade(toggleState ? timeStampToNumber(crossFadeLabel.getText()) : 0);
+
+    if (currentFile) {
+        currentFile->crossFadeActive = toggleState;
+        currentFile->setCustomSetting(AudioFile::CustomSetting::CrossFadeActive, true);
     }
 }
 
@@ -613,14 +639,21 @@ void MainComponent::onCrossFadeTextEditShow() {
     edit->setInputFilter(&crossFadeEditFilter, false);
 }
 
-void MainComponent::onCrossFadeTextEditHide() {
+void MainComponent::onCrossFadeTextEditHide(bool userChanged) {
     juce::String text = crossFadeLabel.getText();
     double n = timeStampToNumber(text);
     if (n > maxCrossFade) {
         n = maxCrossFade;
-        crossFadeLabel.setText(juce::String(maxCrossFade), juce::NotificationType::dontSendNotification);
+        crossFadeLabel.setText(juce::String(n), juce::NotificationType::dontSendNotification);
     }
+
+    if (userChanged && currentFile) {
+        currentFile->crossFadeLength = n;
+        currentFile->setCustomSetting(AudioFile::CustomSetting::CrossFadeLength, true);
+    }
+
     if (crossFadeCheckBox.getToggleState()) {
+
         setCrossFade(n);
     }
 }
@@ -813,7 +846,7 @@ void MainComponent::changeState(TransportState newState)
             timeLine.setClickableTimeStamp(true);
             break;
         case Starting:
-            //playButton.setImage(pauseImage);
+            playButton.setImage(pauseImage);
             transportSource.start();
             timeLine.setClickableTimeStamp(false);
             break;
@@ -971,6 +1004,9 @@ void MainComponent::setLoopTimeStamps(double loopStart, double loopEnd) {
     if (currentFile != nullptr) {
         currentFile->loopStart = loopStart;
         currentFile->loopEnd = loopEnd;
+
+        currentFile->setCustomSetting(AudioFile::CustomSetting::LoopStart, loopStart != 0);
+        currentFile->setCustomSetting(AudioFile::CustomSetting::LoopEnd, loopEnd != transportSource.getLengthInSeconds());
     }
     timeLine.setLoopMarkerOnValues(loopStart, loopEnd, false);
 
@@ -1042,6 +1078,8 @@ AudioFile* MainComponent::findFileInAllFiles(const juce::File& file) {
     AudioFile newFile(absPath, 0, length);
     newFile.relPathToLib = relPath;
     newFile.length = length;
+    newFile.crossFadeActive = defaultCrossFadeActive;
+    newFile.crossFadeLength = defaultCrossFadeLength;
 
     // last: find same filename and same length and ASK if same loopmarkers should be applied
     juce::String fileName = file.getFileName();
@@ -1098,7 +1136,6 @@ void MainComponent::openFile(const juce::File& file)
         if (reader != nullptr)
         {
             auto newSource = std::make_unique<juce::AudioFormatReaderSource>(reader, true);
-            //transportSource.setSource(newSource.get(), 6000*48000, &fileBufferThreat, reader->sampleRate);
             transportSource.setSource(newSource.get(),0, nullptr, reader->sampleRate);
 
 
@@ -1111,12 +1148,26 @@ void MainComponent::openFile(const juce::File& file)
             currentFile =  findFileInAllFiles(file);
             initTimeLine();
 
-            //changeState(state);
             changeLoopmode(loopmode);
 
-            setLoopTimeStamps(currentFile->loopStart, currentFile->loopEnd);
+            double loopStart = currentFile->hasCustomSetting(AudioFile::CustomSetting::LoopStart) ? currentFile->loopStart : 0;
+            double loopEnd = currentFile->hasCustomSetting(AudioFile::CustomSetting::LoopEnd) ? currentFile->loopEnd : DBL_MAX;
 
+            setLoopTimeStamps(loopStart, loopEnd);
 
+            crossFadeCheckBox.setToggleState(
+                currentFile->hasCustomSetting(AudioFile::CustomSetting::CrossFadeActive)
+                    ? currentFile->crossFadeActive
+                    : defaultCrossFadeActive,
+                juce::NotificationType::dontSendNotification);
+
+            crossFadeLabel.setText(
+                juce::String(currentFile->hasCustomSetting(AudioFile::CustomSetting::CrossFadeLength)
+                    ? currentFile->crossFadeLength
+                    : defaultCrossFadeLength),
+                juce::NotificationType::dontSendNotification);
+
+            onCrossFadeTextEditHide(false);
 
         }
     }
@@ -1135,7 +1186,11 @@ void MainComponent::saveAllSettingsToFile() {
     obj->setProperty("volume", curVolume);
     obj->setProperty("currentFileBrowserPath",fileBrowser.getRoot().getFullPathName());
 
-    currentFile = nullptr;
+    //currentFile = nullptr;
+
+    obj->setProperty("defaultCrossFadeActive", defaultCrossFadeActive);
+    obj->setProperty("defaultCrossFadeLength", defaultCrossFadeLength);
+
 
     juce::var roots;
     for (juce::File file : musicLibs) {
@@ -1147,15 +1202,13 @@ void MainComponent::saveAllSettingsToFile() {
 
     juce::var files;
     for(AudioFile file : allFiles) {
-        juce::DynamicObject* fileObj = new juce::DynamicObject();
-        file.copyPropetiesToDynObj(fileObj);
-        files.append(juce::var(fileObj));
+        if(!file.hasCustomSetting(AudioFile::CustomSetting::None))
+            files.append(file.toVar());
     }
     obj->setProperty("audioFiles", files);
 
 
     settingsFile.replaceWithText(juce::JSON::toString(json));
-
 
 
     auto audioSettings = customDeviceManager.createStateXml();
@@ -1178,6 +1231,18 @@ void MainComponent::loadAllSettingsFromFile() {
         if (prop != juce::var()) {
             curVolume = (double)prop;
             volSlider.setValue(curVolume);
+        }
+
+        prop = obj->getProperty("defaultCrossFadeActive");
+        if (prop != juce::var()) {
+            defaultCrossFadeActive = (bool)prop;
+            settingsViewWindow.settingsViewContentComponent.defaultCrossFadeToggle.setToggleState(defaultCrossFadeActive, juce::dontSendNotification);
+        }
+
+        prop = obj->getProperty("defaultCrossFadeLength");
+        if (prop != juce::var()) {
+            defaultCrossFadeLength = (double)prop;
+            settingsViewWindow.settingsViewContentComponent.defaultCrossFadeLabel.setText(juce::String(defaultCrossFadeLength),juce::dontSendNotification);
         }
 
     
@@ -1325,6 +1390,8 @@ void SettingsViewContentComponent::initFlexBoxes()
 {
     fb.items.clear();
     fbMusicLibs.items.clear();
+    fbCrossFade.items.clear();
+
 
     fb.flexDirection = juce::FlexBox::Direction::column;
     fb.flexWrap = juce::FlexBox::Wrap::noWrap;
@@ -1339,7 +1406,6 @@ void SettingsViewContentComponent::initFlexBoxes()
         .withMaxHeight(60)
         .withMinHeight(30)
         .withMargin(juce::FlexItem::Margin(20, 40, 10, 40))
-        //.withAlignSelf(juce::FlexItem::AlignSelf::flexStart)
     );
 
 
@@ -1347,7 +1413,7 @@ void SettingsViewContentComponent::initFlexBoxes()
         .withFlex(1, 1, 50)
         .withMaxHeight(50)
         .withMinHeight(30)
-        .withMargin(juce::FlexItem::Margin(10, 40, 2, 40))
+        .withMargin(juce::FlexItem::Margin(30, 40, 2, 40))
     );
 
     fbMusicLibs.flexDirection = juce::FlexBox::Direction::row;
@@ -1359,8 +1425,6 @@ void SettingsViewContentComponent::initFlexBoxes()
     fbMusicLibs.items.add(juce::FlexItem(pathsCombo)
         .withFlex(4, 2, 400)
         .withMargin(juce::FlexItem::Margin(0, 10, 0, 10))
-        //.withMinHeight(20)
-        //.withMaxHeight(60)
         .withMinWidth(150)
     );
 
@@ -1381,11 +1445,57 @@ void SettingsViewContentComponent::initFlexBoxes()
     );
 
     fb.items.add(juce::FlexItem(fbMusicLibs)
-        .withMargin(juce::FlexItem::Margin(5,30,20,30))
+        .withMargin(juce::FlexItem::Margin(5,30,30,30))
         .withMaxHeight(60)
         .withMinHeight(30)
         .withFlex(1, 1, 50)
     );
 
+    fb.items.add(juce::FlexItem(crossFadeTitelLabel)
+        .withFlex(1, 1, 50)
+        .withMaxHeight(50)
+        .withMinHeight(30)
+        .withMargin(juce::FlexItem::Margin(30, 40, 2, 40))
+    );
+
+    fbCrossFade.flexDirection = juce::FlexBox::Direction::row;
+    fbCrossFade.flexWrap = juce::FlexBox::Wrap::noWrap;
+    fbCrossFade.justifyContent = juce::FlexBox::JustifyContent::center;
+    fbCrossFade.alignContent = juce::FlexBox::AlignContent::stretch;
+    fbCrossFade.alignItems = juce::FlexBox::AlignItems::stretch;
+
+    fbCrossFade.items.add(juce::FlexItem(defaultCrossFadeToggle)
+        .withFlex(1, 1, 800)
+        .withMargin(juce::FlexItem::Margin(0, 10, 0, 10))
+        .withMaxWidth(100)
+        .withMinWidth(50)
+        .withMaxHeight(50)
+        .withMinHeight(30)
+    );
+
+    fbCrossFade.items.add(juce::FlexItem(defaultCrossFadeLabel)
+        .withFlex(1, 1, 80)
+        .withMargin(juce::FlexItem::Margin(0, 10, 0, 0))
+        .withMaxWidth(100)
+        .withMinWidth(50)
+        .withMaxHeight(40)
+        .withMinHeight(30)
+    );
+
+    fbCrossFade.items.add(juce::FlexItem(crossFadeUnitLabel)
+        .withFlex(1, 1, 50)
+        .withMargin(juce::FlexItem::Margin(0, 0, 0, 10))
+        .withMaxWidth(100)
+        .withMinWidth(30)
+        .withMaxHeight(50)
+        .withMinHeight(30)
+    );
+
+    fb.items.add(juce::FlexItem(fbCrossFade)
+        .withMargin(juce::FlexItem::Margin(5, 30, 20, 30))
+        .withMaxHeight(60)
+        .withMinHeight(30)
+        .withFlex(1, 1, 50)
+    );
 
 }
