@@ -96,6 +96,9 @@ public:
     void childrenChanged() override;
     void setClickableTimeStamp(bool shouldBeClickable);
 
+    void addInputBoxAsChild(juce::Component* newParent);
+    void updateInputBoxValue();
+
     void setLoopMarkersActive(bool active);
     void setWholeLoopMarkersActive(bool active);
     const juce::Image getActiveLoopMarkerIcon();
@@ -110,11 +113,10 @@ private:
     juce::Label* findTimeStampBox();
 
     bool showMilliSeconds=false;
+    bool updateTimeInInputbox = false;
     juce::TextEditor inputBox;
     std::function<void()> inputBoxFadeFunction;
     juce::TimedCallback inputBoxFadeTimer{ [this] {inputBoxFadeFunction(); } };
-
-    float inputBoxCenterX = 0;
 };
 
 

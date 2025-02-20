@@ -88,7 +88,7 @@ public:
 
         musicLibsLabel.setText("Music Librarys", juce::NotificationType::dontSendNotification);
         musicLibsLabel.setJustificationType(juce::Justification::centredLeft);
-        musicLibsLabel.setFont(juce::Font(14));
+        musicLibsLabel.setFont(juce::Font(16));
         musicLibsLabel.setInterceptsMouseClicks(false, false);
         addAndMakeVisible(musicLibsLabel);
        
@@ -104,7 +104,7 @@ public:
 
         crossFadeTitelLabel.setText("default CrossFade Settings (used if not changed for this file yet)", juce::NotificationType::dontSendNotification);
         crossFadeTitelLabel.setJustificationType(juce::Justification::centredLeft);
-        crossFadeTitelLabel.setFont(juce::Font(14));
+        crossFadeTitelLabel.setFont(juce::Font(16));
         crossFadeTitelLabel.setInterceptsMouseClicks(false, false);
         addAndMakeVisible(crossFadeTitelLabel);
         
@@ -119,13 +119,14 @@ public:
 
         crossFadeUnitLabel.setText("secs", juce::NotificationType::dontSendNotification);
         crossFadeUnitLabel.setJustificationType(juce::Justification::centredLeft);
-        crossFadeUnitLabel.setFont(juce::Font(12));
+        crossFadeUnitLabel.setFont(juce::Font(14));
         crossFadeUnitLabel.setInterceptsMouseClicks(false, false);
         addAndMakeVisible(crossFadeUnitLabel);
     }
     ~SettingsViewContentComponent() {};
 
     juce::FlexBox fb;
+    juce::FlexBox fbTopRow;
     juce::FlexBox fbMusicLibs;
     juce::FlexBox fbCrossFade;
 
@@ -345,7 +346,6 @@ private:
     void openAudioSettings();
     void closeAudioSettings();
 
-    void deleteMusicLibRoot();
     void updateMusicLibsComboBox();
     void onDefaultCrossFadeToggleChange();
     void onDefaultCrossFadeTextEditShow();

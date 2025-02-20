@@ -5,7 +5,6 @@
 LoopMarker::LoopMarker(TimeLine* par) :par(par) {
 
     setBounds(0, 0, 1, 1);
-    //setInterceptsMouseClicks(true, false);
     createIcons();
 }
 
@@ -172,16 +171,11 @@ TimeLine::TimeLine() {
                 inputBox.setVisible(false);
                 showMilliSeconds = false;
                 inputBoxFadeTimer.stopTimer();
+                updateTimeInInputbox = false;
             }
         }
     };
 
-    inputBox.onTextChange = [this] {
-        float width = inputBox.getFont().getStringWidthFloat(inputBox.getText());
-        width += inputBox.getLeftIndent() * 2;
-        inputBox.setBounds(round(inputBoxCenterX - width / 2.0), inputBox.getPosition().y, width, inputBox.getHeight());
-    };
-    
     inputBox.onReturnKey = [this] {
         inputBox.giveAwayKeyboardFocus();
         double val = getValueFromText(inputBox.getText());
@@ -216,7 +210,6 @@ TimeLine::TimeLine() {
     };
 
 
-
     setTextBoxIsEditable(true);
 
     timeStampBox = findTimeStampBox();
@@ -229,8 +222,6 @@ TimeLine::TimeLine() {
 
     inputBox.setMultiLine(false);
     inputBox.setJustification(juce::Justification::centred);
-    addAndMakeVisible(inputBox);
-    inputBox.setVisible(false);
 
     leftMarker.setTimeStamp(0);
     rightMarker.setTimeStamp(INFINITY);
@@ -288,9 +279,10 @@ void TimeLine::positionInputBox(double time) {
     float inputBoxWidth = inputBox.getFont().getStringWidthFloat(inputBox.getText()) + inputBox.getLeftIndent() * 2;
     float inputBoxHeight = 16;
 
-    inputBoxCenterX = getPositionOfValue(value);
+    juce::Rectangle<int> newBounds = juce::Rectangle<int>(round(getPositionOfValue(value) - 0.5 * inputBoxWidth), 0.62 * getHeight(), inputBoxWidth, inputBoxHeight);
 
-    inputBox.setBounds(getPositionOfValue(value) - 0.5 * inputBoxWidth, 0.62 * getHeight(), inputBoxWidth, 16);
+    newBounds = inputBox.getParentComponent()->getLocalArea(this, newBounds);
+    inputBox.setBounds(newBounds);
 
 }
 
@@ -429,6 +421,7 @@ void TimeLine::loopMarkerClick(double atTimeValue, bool isNewPos, bool isDoubleC
         setLoopMarkerOnValue(atTimeValue);
 
     startShowingInputBox(atTimeValue);
+    updateTimeInInputbox = false;
 
     if (isDoubleClick) {
         lastLoopMarkerPos = atTimeValue;
@@ -444,6 +437,7 @@ void TimeLine::mouseDown(const juce::MouseEvent& e)
     if (e.mods.isShiftDown()) {
         //setting loopMarkers
         loopMarkerClick(getValueFromPosition(e), true, false);
+        updateTimeInInputbox = false;
     }
     else {
         //normal slider behavior
@@ -454,14 +448,12 @@ void TimeLine::mouseDown(const juce::MouseEvent& e)
 }
 
 void TimeLine::mouseUp(const juce::MouseEvent& e) {
-    if (e.mods.isShiftDown()) {
-        //setting loopMarkers
-        loopMarkerClick(getValueFromPosition(e), true, false);
-    }
-    else {
-        //normal slider behavior
+    if (!e.mods.isShiftDown()) {
+
         juce::Slider::mouseUp(e);
         startShowingInputBox();
+
+        updateTimeInInputbox = true;
     }
 }
 
@@ -555,6 +547,20 @@ void TimeLine::setClickableTimeStamp(bool shouldBeClickable)
         timeStampBox->setEditable(false, false, true);
 
     }
+}
+
+//inputBox needs another parent so it can be rendered out of bounds of TimeLine
+void TimeLine::addInputBoxAsChild(juce::Component* newParent)
+{
+    newParent->addChildComponent(inputBox);
+}
+
+void TimeLine::updateInputBoxValue()
+{
+    if (updateTimeInInputbox) {
+        positionInputBox();
+    }
+
 }
 
 

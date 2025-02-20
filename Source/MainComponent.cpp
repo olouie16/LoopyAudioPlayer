@@ -48,7 +48,7 @@ MainComponent::MainComponent()
     volSlider.onValueChange = [this]() {volSliderValueChanged(); };
     addAndMakeVisible(volSlider);
 
-    crossFadeCheckBox.onStateChange = [this]() {onCrossFadeCheckBoxChange(); };
+    crossFadeCheckBox.onClick = [this]() {onCrossFadeCheckBoxChange(); };
     crossFadeCheckBox.setButtonText("Cross Fade");
     addAndMakeVisible(crossFadeCheckBox);
 
@@ -67,6 +67,7 @@ MainComponent::MainComponent()
     timeLine.onValueChange = [this](bool userChanged=false) {timeLineValueChanged(userChanged); };
     timeLine.onTimerCallback = [this]() {updateTimeLine(); };
     timeLine.onLoopMarkerChange = [this](double left, double right) {setLoopTimeStamps(left, right); };
+    timeLine.addInputBoxAsChild(this);
     timeLine.startTimer(timeLine.guiRefreshTime);
     addAndMakeVisible(timeLine);
 
@@ -77,7 +78,7 @@ MainComponent::MainComponent()
     fileBrowser.addListener(this);
     addAndMakeVisible(fileBrowser);
 
-    settingsViewWindow.onDelButtonClicked = [this]() {deleteMusicLibRoot(); };
+    settingsViewWindow.onDelButtonClicked = [this]() {removeMusicLib(settingsViewWindow.settingsViewContentComponent.pathsCombo.getText()); };
     settingsViewWindow.onAudioSettingsButtonClicked = [this]() {openAudioSettings(); };
     settingsViewWindow.setCentrePosition(getBounds().getCentre());
     settingsViewWindow.onDefaultCrossFadeToggleChange = [this]() {onDefaultCrossFadeToggleChange(); };
@@ -356,13 +357,6 @@ void MainComponent::openAudioSettings()
 void MainComponent::closeAudioSettings()
 {
     deviceSelectorWindow.setVisible(false);
-}
-
-void MainComponent::deleteMusicLibRoot() {
-    int index = settingsViewWindow.settingsViewContentComponent.pathsCombo.getSelectedId()-1;
-    musicLibs.erase(musicLibs.begin()+index);
-    updateMusicLibsComboBox();
-    browserRootChanged(fileBrowser.getRoot());
 }
 
 void MainComponent::updateMusicLibsComboBox()
@@ -677,7 +671,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 {
 
 
-    if (readerSource.get() == nullptr)
+    if (readerSource.get() == nullptr || state!=TransportState::Playing)
     {
         bufferToFill.clearActiveBufferRegion();
         return;
@@ -837,6 +831,7 @@ void MainComponent::changeState(TransportState newState)
             timeLine.setClickableTimeStamp(true);
             break;
         case Pausing:
+            inTransition = false;
             transportSource.stop();
             timeLine.setClickableTimeStamp(true);
             break;
@@ -862,6 +857,8 @@ void MainComponent::changeState(TransportState newState)
             playButton.setImage(playImage);
             playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::green);
             if (transportSource.isPlaying()) {
+                transportSource.setPosition(0);
+                inTransition = false;
                 transportSource.stop();
             }
             else {
@@ -985,6 +982,7 @@ void MainComponent::updateTimeLine()
 
         if (transportSource.getLengthInSeconds() > 0 && transportSource.getTotalLength() > 0) {
             timeLine.setValue(transportSource.getNextReadPosition()/curSampleRate);
+            timeLine.updateInputBoxValue();
         }
         else
         {
@@ -1389,9 +1387,31 @@ void FileBrowserComp::getRoots(juce::StringArray& rootNames, juce::StringArray& 
 void SettingsViewContentComponent::initFlexBoxes()
 {
     fb.items.clear();
+    fbTopRow.items.clear();
     fbMusicLibs.items.clear();
     fbCrossFade.items.clear();
 
+    fbTopRow.flexDirection = juce::FlexBox::Direction::row;
+    fbTopRow.flexWrap = juce::FlexBox::Wrap::noWrap;
+    fbTopRow.justifyContent = juce::FlexBox::JustifyContent::spaceBetween;
+    fbTopRow.alignContent = juce::FlexBox::AlignContent::stretch;
+    fbTopRow.alignItems = juce::FlexBox::AlignItems::stretch;
+
+
+    fbTopRow.items.add(juce::FlexItem(audioSettingsButton)
+        .withFlex(1, 1, 250)
+        .withMaxWidth(300)
+        .withMaxHeight(60)
+        .withMinHeight(30)
+        .withMargin(juce::FlexItem::Margin(0, 10, 0, 10))
+    );
+
+    fbTopRow.items.add(juce::FlexItem(backButton)
+        .withFlex(1, 1, 150)
+        .withMargin(juce::FlexItem::Margin(0, 10, 0, 10))
+        .withMaxWidth(300)
+        .withMinWidth(50)
+    );
 
     fb.flexDirection = juce::FlexBox::Direction::column;
     fb.flexWrap = juce::FlexBox::Wrap::noWrap;
@@ -1400,14 +1420,13 @@ void SettingsViewContentComponent::initFlexBoxes()
     fb.alignItems = juce::FlexBox::AlignItems::stretch;
 
 
-    fb.items.add(juce::FlexItem(audioSettingsButton)
+
+    fb.items.add(juce::FlexItem(fbTopRow)
         .withFlex(1, 1, 50)
-        .withMaxWidth(300)
         .withMaxHeight(60)
         .withMinHeight(30)
-        .withMargin(juce::FlexItem::Margin(20, 40, 10, 40))
+        .withMargin(juce::FlexItem::Margin(30, 30, 20, 30))
     );
-
 
     fb.items.add(juce::FlexItem(musicLibsLabel)
         .withFlex(1, 1, 50)
@@ -1437,12 +1456,7 @@ void SettingsViewContentComponent::initFlexBoxes()
         .withMaxWidth(300)
         .withMinWidth(70)
     );
-    fbMusicLibs.items.add(juce::FlexItem(backButton)
-        .withFlex(1, 1, 150)
-        .withMargin(juce::FlexItem::Margin(0, 10, 0, 10))
-        .withMaxWidth(300)
-        .withMinWidth(50)
-    );
+
 
     fb.items.add(juce::FlexItem(fbMusicLibs)
         .withMargin(juce::FlexItem::Margin(5,30,30,30))
